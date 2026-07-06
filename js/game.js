@@ -9,12 +9,16 @@
   const canvas = document.getElementById("game");
   const ctx = canvas.getContext("2d");
 
-  // ---- theme colours ----
+  // ---- theme colours (authentic Level Devil: light room, black char, red spikes) ----
   const C = {
-    bg: "#14141b", grid: "#1d1d28", solid: "#e9e9f0", solidEdge: "#b9b9c8",
-    player: "#ff4d5e", spike: "#ff4d5e", door: "#4dd2a0", doorFrame: "#2c8f6d",
-    danger: "#ff4d5e", text: "#e9e9f0",
+    bg: "#f4f1e8", grid: "#e7e2d3", solid: "#17171c", solidEdge: "#34343f",
+    player: "#16161a", eye: "#ffffff",
+    spike: "#e5342b", door: "#37c08a", doorFrame: "#0f7a52",
+    particle: "#e5342b", text: "#e9e9f0", hint: "rgba(22,22,26,0.5)",
   };
+
+  // ---- character animation state ----
+  const anim = { time: 0, stride: 0, facing: 1, squash: 0, wasGround: false };
 
   // ---- input ----
   const keys = { left: false, right: false, jump: false };
@@ -108,6 +112,8 @@
   function update(dt) {
     if (won) return;
     totalTime += dt;
+    anim.time += dt;
+    if (anim.squash > 0) anim.squash = Math.max(0, anim.squash - dt * 6); // splat relaxes
 
     // particles always animate
     for (const p of particles) { p.life -= dt; p.vy += GRAV * 0.5 * dt; p.x += p.vx * dt; p.y += p.vy * dt; }
@@ -144,6 +150,7 @@
     }
 
     // --- move Y, resolve ---
+    const impactVy = player.vy;          // remember fall speed for landing squash
     player.y += player.vy * dt;
     player.onGround = false;
     for (const r of solids) {
@@ -162,6 +169,12 @@
     // keep inside side walls of arena
     if (player.x < 0) player.x = 0;
     if (player.x + player.w > VW) player.x = VW - player.w;
+
+    // --- animation drivers ---
+    if (Math.abs(player.vx) > 5) anim.facing = player.vx > 0 ? 1 : -1;          // face travel dir
+    if (player.onGround && Math.abs(player.vx) > 5) anim.stride += Math.abs(player.vx) * dt * 0.04; // step cadence ~ speed
+    if (player.onGround && !anim.wasGround && impactVy > 250) anim.squash = Math.min(1, impactVy / 1100); // landed hard -> splat
+    anim.wasGround = player.onGround;
 
     updateTraps(dt);
     updateDoor(dt);
@@ -291,10 +304,10 @@
     for (const r of L.fakes) drawSolid(r);
     // solids
     for (const r of L.solids) drawSolid(r);
-    // disappearing
-    for (const r of L.disappear) if (!r.gone) { ctx.globalAlpha = r.alpha; drawSolid(r, "#c7c7f0"); ctx.globalAlpha = 1; }
-    // collapsing
-    for (const r of L.collapse) drawSolid(r, r.touched ? "#f0c7c7" : "#e0e0ea");
+    // disappearing (looks identical to solid until it fades -> the troll)
+    for (const r of L.disappear) if (!r.gone) { ctx.globalAlpha = r.alpha; drawSolid(r); ctx.globalAlpha = 1; }
+    // collapsing (tints red once it's been triggered)
+    for (const r of L.collapse) drawSolid(r, r.touched ? "#4a2222" : C.solid);
     // crushers (spiked slabs that drop from the ceiling)
     for (const f of L.fallers) if (f.phase !== "idle" || f.y > -60) {
       ctx.fillStyle = "#2a2a34"; ctx.fillRect(f.x, f.y, f.w, f.h);
@@ -307,27 +320,19 @@
     for (const s of L.popspikes) if (s.prog > 0.02) drawSpikeStrip(s.x, s.y0 - s.h * s.prog, s.w, s.h * s.prog, "up");
 
     // player
-    if (player.alive) {
-      ctx.fillStyle = C.player;
-      roundRect(player.x, player.y, player.w, player.h, 6); ctx.fill();
-      // two eyes, shifted toward facing direction
-      ctx.fillStyle = "#fff";
-      const shift = player.vx > 0 ? 4 : player.vx < 0 ? -4 : 0;
-      ctx.fillRect(player.x + 7 + shift, player.y + 9, 6, 6);
-      ctx.fillRect(player.x + 17 + shift, player.y + 9, 6, 6);
-    }
+    if (player.alive) drawCharacter(player);
 
     // particles
     for (const p of particles) {
       ctx.globalAlpha = Math.max(0, p.life / 0.6);
-      ctx.fillStyle = C.player;
+      ctx.fillStyle = C.particle;
       ctx.fillRect(p.x - p.r / 2, p.y - p.r / 2, p.r, p.r);
     }
     ctx.globalAlpha = 1;
 
     // hint text (first ~4s of a level)
     if (L.hint && totalTime >= 0) {
-      ctx.fillStyle = "rgba(233,233,240,0.55)";
+      ctx.fillStyle = C.hint;
       ctx.font = "16px system-ui, sans-serif"; ctx.textAlign = "center";
       ctx.fillText(L.hint, VW / 2, 40);
     }
@@ -360,6 +365,68 @@
     ctx.arcTo(x, y + h, x, y, r);
     ctx.arcTo(x, y, x + w, y, r);
     ctx.closePath();
+  }
+
+  // thick rounded limb segment (hip->foot or shoulder->hand), all one silhouette colour
+  function limb(x1, y1, x2, y2, w) {
+    ctx.strokeStyle = C.player; ctx.lineWidth = w; ctx.lineCap = "round";
+    ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+  }
+
+  // Procedural humanoid: strides when running, tucks on jump, sprawls on fall, breathes idle.
+  function drawCharacter(pl) {
+    const cx = pl.x + pl.w / 2, feetY = pl.y + pl.h;
+    const grounded = pl.onGround, moving = Math.abs(pl.vx) > 5;
+
+    // ground shadow -> grounds the character visually
+    if (grounded) {
+      ctx.fillStyle = "rgba(0,0,0,0.13)";
+      ctx.beginPath(); ctx.ellipse(cx, feetY - 1, pl.w * 0.55, 4, 0, 0, Math.PI * 2); ctx.fill();
+    }
+
+    // squash & stretch: land splat -> jump stretch -> idle breath
+    let sx = 1, sy = 1;
+    if (anim.squash > 0) { sx = 1 + 0.35 * anim.squash; sy = 1 - 0.35 * anim.squash; }
+    else if (!grounded) { if (pl.vy < -60) { sx = 0.85; sy = 1.15; } else if (pl.vy > 240) { sx = 0.93; sy = 1.08; } }
+    else if (!moving) { const b = Math.sin(anim.time * 3) * 0.03; sx = 1 - b; sy = 1 + b; }
+
+    ctx.save();
+    ctx.translate(cx, feetY); ctx.scale(anim.facing * sx, sy); ctx.translate(-cx, -feetY); // flip toward facing
+
+    const hipY = feetY - 12, shoulderY = pl.y + 12, headY = pl.y + 6, headR = 7;
+    const st = anim.stride;
+
+    // legs (two, opposite phase). foot swings fwd/back + lifts mid-stride
+    const foot = (ph) => {
+      let fx, fy;
+      if (grounded && moving) { fx = cx + Math.sin(ph) * 7; fy = feetY - Math.max(0, Math.cos(ph)) * 6; }
+      else if (!grounded) { const s = Math.sin(ph) > 0 ? 1 : -1; if (pl.vy < -60) { fx = cx + s * 3; fy = feetY - 7; } else { fx = cx + s * 5; fy = feetY + 2; } }
+      else { fx = cx + (Math.sin(ph) > 0 ? 5 : -5); fy = feetY; }
+      limb(cx, hipY, fx, fy, 6);
+    };
+    foot(st); foot(st + Math.PI);
+
+    // arms (two, opposite phase to legs)
+    const arm = (ph) => {
+      let hx, hy;
+      if (grounded && moving) { hx = cx - Math.sin(ph) * 6; hy = shoulderY + 9 - Math.max(0, -Math.cos(ph)) * 3; }
+      else if (!grounded) { const s = Math.sin(ph) > 0 ? 1 : -1; if (pl.vy < -60) { hx = cx + s * 8; hy = shoulderY - 4; } else { hx = cx + s * 10; hy = shoulderY + 5; } }
+      else { hx = cx + (Math.sin(ph) > 0 ? 7 : -7); hy = shoulderY + 10; }
+      limb(cx, shoulderY + 2, hx, hy, 5);
+    };
+    arm(st); arm(st + Math.PI);
+
+    // torso + head (same colour -> merges into one clean silhouette)
+    ctx.fillStyle = C.player;
+    roundRect(cx - 8, shoulderY, 16, hipY - shoulderY + 3, 5); ctx.fill();
+    ctx.beginPath(); ctx.arc(cx, headY, headR, 0, Math.PI * 2); ctx.fill();
+
+    // eyes (white), pushed toward facing direction
+    ctx.fillStyle = C.eye;
+    ctx.fillRect(cx + 1, headY - 3, 3, 4);
+    ctx.fillRect(cx + 5, headY - 3, 3, 4);
+
+    ctx.restore();
   }
 
   // ---- HUD refs ----

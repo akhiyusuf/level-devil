@@ -54,7 +54,7 @@ body {
 }
 
 canvas {
-  background: #14141b;
+  background: #f4f1e8;
   border: 1px solid var(--line);
   border-radius: 14px;
   box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5);

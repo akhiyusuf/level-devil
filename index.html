@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+  <title>Level Devil — clone</title>
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <div class="hud">
+    <span class="tag">LEVEL DEVIL</span>
+    <span id="hud-name" class="name">—</span>
+    <span class="spacer"></span>
+    <span class="stat">Level <b id="hud-level">1 / 10</b></span>
+    <span class="stat">Deaths <b id="hud-deaths">0</b></span>
+    <span class="stat">Time <b id="hud-time">0.0s</b></span>
+  </div>
+
+  <div class="stage">
+    <canvas id="game" width="960" height="540"></canvas>
+  </div>
+
+  <div class="touch">
+    <div class="pad">
+      <button id="btn-left" aria-label="left">◀</button>
+      <button id="btn-right" aria-label="right">▶</button>
+    </div>
+    <button id="btn-jump" aria-label="jump">JUMP</button>
+  </div>
+
+  <p class="foot">Arrows / WASD to move · Space / W / ▲ to jump · R to restart level</p>
+
+  <script src="js/levels.js"></script>
+  <script src="js/game.js"></script>
+</body>
+</html>

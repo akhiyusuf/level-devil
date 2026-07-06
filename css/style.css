@@ -1,0 +1,102 @@
+:root {
+  --bg: #0e0e13;
+  --panel: #14141b;
+  --line: #23232e;
+  --text: #e9e9f0;
+  --muted: #8b8b9c;
+  --accent: #ff4d5e;
+  --good: #4dd2a0;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  overflow: hidden;
+  touch-action: manipulation;
+}
+
+body {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 10px;
+}
+
+.hud {
+  width: min(960px, 100%);
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 8px 14px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  font-size: 14px;
+}
+.hud .tag { font-weight: 800; letter-spacing: 1px; color: var(--accent); }
+.hud .name { color: var(--muted); font-style: italic; }
+.hud .spacer { flex: 1; }
+.hud .stat { color: var(--muted); white-space: nowrap; }
+.hud .stat b { color: var(--text); font-variant-numeric: tabular-nums; }
+
+.stage {
+  flex: 1;
+  width: min(960px, 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 0;
+}
+
+canvas {
+  background: #14141b;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5);
+  image-rendering: auto;
+  max-width: 100%;
+  max-height: 100%;
+}
+
+.foot {
+  color: var(--muted);
+  font-size: 12.5px;
+  text-align: center;
+}
+
+/* touch controls — only on coarse pointers */
+.touch {
+  display: none;
+  width: min(960px, 100%);
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 12px;
+  padding: 4px;
+}
+.touch .pad { display: flex; gap: 12px; }
+.touch button {
+  background: var(--panel);
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  font-size: 20px;
+  font-weight: 700;
+  padding: 18px 22px;
+  min-width: 64px;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.touch button:active { background: var(--accent); border-color: var(--accent); }
+#btn-jump { min-width: 120px; color: var(--good); }
+#btn-jump:active { background: var(--good); color: #0e0e13; border-color: var(--good); }
+
+@media (pointer: coarse) {
+  .touch { display: flex; }
+  .foot { display: none; }
+}

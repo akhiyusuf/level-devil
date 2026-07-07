@@ -12,11 +12,17 @@ window.SFX = (() => {
     muted = !!s.muted;
   } catch (_) {}
 
+  // Sound Lab picks: {event: "pack/file"} -> assets/sfx/lib/pack/file.ogg overrides default
+  let picks = {};
+  try { picks = JSON.parse(localStorage.getItem("ld_sfx_map") || "{}"); } catch (_) {}
+
   const persist = () => localStorage.setItem("ld_sound", JSON.stringify({ volume, muted }));
+  const srcFor = n => "assets/sfx/" + (typeof picks[n] === "string" && /^[\w-]+\/[\w.-]+$/.test(picks[n])
+    ? "lib/" + picks[n] + ".ogg" : n + ".ogg") + "?v=8";
 
   for (const n of NAMES) {
     bank[n] = { i: 0, pool: Array.from({ length: POLY }, () => {
-      const a = new Audio("assets/sfx/" + n + ".ogg?v=7");
+      const a = new Audio(srcFor(n));
       a.preload = "auto";
       return a;
     }) };
@@ -41,6 +47,7 @@ window.SFX = (() => {
 
   return {
     play,
+    NAMES, TRIM, srcFor,                                   // Sound Lab hooks
     get volume() { return volume; },
     get muted() { return muted; },
     setVolume(v) { volume = Math.max(0, Math.min(1, v)); persist(); },

@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+  <title>Level Devil — Sound Lab</title>
+  <link rel="stylesheet" href="css/soundlab.css?v=8" />
+</head>
+<body>
+
+  <!-- ============ top bar ============ -->
+  <div class="topbar">
+    <a class="back" href="index.html">←</a>
+    <div class="tt">
+      <h1>SOUND LAB</h1>
+      <p>Audition &amp; pick every sound the game makes</p>
+    </div>
+    <span class="spacer"></span>
+    <span id="pick-count" class="pick-count"></span>
+  </div>
+
+  <!-- ============ controls card ============ -->
+  <div class="wrap">
+    <div class="card ctrl-card">
+      <label class="vol-row">🔊 Preview &amp; game volume
+        <input id="vol" type="range" min="0" max="100" />
+      </label>
+      <p class="note">Tap any sound to hear it (at real in-game loudness). Hit <b>“Use this”</b> to make it live —
+        the game on <em>this device</em> uses your picks instantly. When you're happy,
+        <b>Copy my picks</b> and send them to your dev to make them the default for everyone.</p>
+      <div class="ctrl-btns">
+        <button id="btn-export" class="primary">📋 Copy my picks</button>
+        <button id="btn-reset-all" class="danger">↺ Reset all to defaults</button>
+      </div>
+    </div>
+
+    <div id="events"></div>
+
+    <p class="foot">All sounds are CC0 from <b>kenney.nl</b> — 437 in the library. No music, just you and the devil. 😈</p>
+  </div>
+
+  <!-- ============ browse-all bottom sheet ============ -->
+  <div id="browse" class="bsheet" style="display:none">
+    <div class="bsheet-head">
+      <div>
+        <h3 id="browse-title">All sounds</h3>
+        <p id="browse-sub" class="bsheet-sub">tap to hear · then “Use this”</p>
+      </div>
+      <button id="browse-close" class="bsheet-close">✕</button>
+    </div>
+    <input id="browse-search" type="search" placeholder="Search 437 sounds…" />
+    <div id="browse-packs" class="pack-row"></div>
+    <div id="browse-list" class="bsheet-body"></div>
+    <div class="bsheet-foot">
+      <span id="browse-now" class="browse-now">nothing auditioned yet</span>
+      <button id="browse-use" class="primary" disabled>✓ Use this</button>
+    </div>
+  </div>
+  <div id="browse-dim" class="dim" style="display:none"></div>
+
+  <script src="js/sfxlib.js?v=8"></script>
+  <script src="js/soundlab.js?v=8"></script>
+</body>
+</html>

@@ -9,15 +9,15 @@
 
   // identity of the shipped default file for each event (verified by hash)
   const DEFAULTS = {
-    jump: "digital-audio/pepSound3", land: "impact-sounds/footstep_concrete_002",
-    death: "digital-audio/lowThreeTone", coin: "digital-audio/pepSound1",
-    star: "digital-audio/powerUp5", key: "digital-audio/threeTone1",
-    door: "digital-audio/powerUp7", complete: "interface-sounds/confirmation_001",
-    button: "interface-sounds/switch_002", gate: "sci-fi-sounds/doorClose_001",
-    slam: "sci-fi-sounds/impactMetal_002", laser: "digital-audio/zap1",
-    portal: "digital-audio/phaserUp3", checkpoint: "interface-sounds/confirmation_002",
-    click: "interface-sounds/click_002", error: "interface-sounds/error_004",
-    pop: "impact-sounds/impactTin_medium_000", appear: "interface-sounds/drop_002",
+    jump: "digital-audio/phaseJump1", land: "impact-sounds/footstep_concrete_002",
+    death: "interface-sounds/error_005", coin: "interface-sounds/glass_004",
+    star: "interface-sounds/confirmation_003", key: "rpg-audio/metalLatch",
+    door: "rpg-audio/doorOpen_2", complete: "interface-sounds/confirmation_001",
+    button: "ui-audio/switch6", gate: "rpg-audio/metalLatch",
+    slam: "impact-sounds/impactBell_heavy_000", laser: "sci-fi-sounds/laserRetro_002",
+    portal: "interface-sounds/maximize_004", checkpoint: "interface-sounds/confirmation_001",
+    click: "interface-sounds/click_003", error: "rpg-audio/cloth2",
+    pop: "rpg-audio/drawKnife3", appear: "sci-fi-sounds/forceField_001",
   };
   // same in-game loudness trim as sfx.js -> previews sound like gameplay
   const TRIM = { land: 0.35, slam: 0.7, laser: 0.4, pop: 0.5, click: 0.6, death: 0.85, jump: 0.45, door: 0.7 };
@@ -65,6 +65,9 @@
   // ---- state ----
   let picks = {};
   try { picks = JSON.parse(localStorage.getItem("ld_sfx_map") || "{}"); } catch (_) {}
+  // prune picks that became the shipped default -> badge shows DEFAULT again
+  for (const k of Object.keys(picks)) if (picks[k] === DEFAULTS[k]) delete picks[k];
+  localStorage.setItem("ld_sfx_map", JSON.stringify(picks));
   let volume = 0.8;
   try { const s = JSON.parse(localStorage.getItem("ld_sound") || "{}"); if (typeof s.volume === "number") volume = s.volume; } catch (_) {}
   const savePicks = () => localStorage.setItem("ld_sfx_map", JSON.stringify(picks));
@@ -81,7 +84,7 @@
   let cur = null;
   function playRef(ref, ev) {
     if (cur) { cur.pause(); cur = null; }
-    const a = new Audio("assets/sfx/lib/" + ref + ".ogg?v=8");
+    const a = new Audio("assets/sfx/lib/" + ref + ".ogg?v=9");
     a.volume = Math.min(1, volume * (TRIM[ev] ?? 0.8));
     a.play().catch(() => {});
     cur = a;
@@ -224,8 +227,8 @@
     refreshCount();
   };
   $("btn-export").onclick = async () => {
-    const lines = EVENTS.map(E => `  "${E.id}": "${current(E.id)}"${picks[E.id] ? "" : "   // default"}`);
-    const txt = "Level Devil — my sound picks (paste this to your dev):\n{\n" + lines.join(",\n") + "\n}";
+    const lines = EVENTS.map((E, i) => `  "${E.id}": "${current(E.id)}"${i < EVENTS.length - 1 ? "," : ""}${picks[E.id] ? "" : "   // default"}`);
+    const txt = "Level Devil — my sound picks (paste this to your dev):\n{\n" + lines.join("\n") + "\n}";
     try { await navigator.clipboard.writeText(txt); $("btn-export").textContent = "✓ Copied!"; }
     catch (_) { prompt("Copy this and send it to your dev:", txt); }
     setTimeout(() => { $("btn-export").textContent = "📋 Copy my picks"; }, 1600);

@@ -3,36 +3,112 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
-  <title>Level Devil — clone</title>
-  <link rel="stylesheet" href="css/style.css?v=5" />
+  <title>Level Devil</title>
+  <link rel="stylesheet" href="css/style.css?v=6" />
 </head>
 <body>
-  <div class="hud">
-    <span class="tag">LEVEL DEVIL</span>
-    <span id="hud-name" class="name">—</span>
-    <span class="spacer"></span>
-    <span class="stat">Level <b id="hud-level">1-1</b></span>
-    <span class="stat" id="hud-coins-wrap" style="display:none">Coins <b id="hud-coins">0/0</b></span>
-    <span class="stat" id="hud-stars-wrap" style="display:none">★ <b id="hud-stars">0</b></span>
-    <span class="stat">Deaths <b id="hud-deaths">0</b></span>
-    <span class="stat">Time <b id="hud-time">0.0s</b></span>
-  </div>
 
-  <div class="stage">
-    <canvas id="game" width="960" height="540"></canvas>
-  </div>
-
-  <div class="touch">
-    <div class="pad">
-      <button id="btn-left" aria-label="left">◀</button>
-      <button id="btn-right" aria-label="right">▶</button>
+  <!-- ============ TITLE ============ -->
+  <div id="screen-title" class="screen">
+    <div class="title-box">
+      <h1 class="logo">LEVEL<span>DEVIL</span></h1>
+      <p class="tagline">the floor is lying to you</p>
+      <div class="menu-btns">
+        <button id="btn-play" class="big">▶ &nbsp;Play</button>
+        <button id="btn-create" class="big alt">🛠 &nbsp;Create</button>
+        <button id="btn-settings" class="big alt">⚙ &nbsp;Settings</button>
+      </div>
+      <div class="code-box">
+        <p>Got a level code from a friend?</p>
+        <div class="code-row">
+          <input id="code-input" type="text" placeholder="Paste a LD1. code or share link" />
+          <button id="btn-code-go">Play it</button>
+        </div>
+      </div>
     </div>
-    <button id="btn-jump" aria-label="jump">JUMP</button>
   </div>
 
-  <p class="foot">Arrows / WASD to move · Space / W / ▲ to jump · R to restart level · <a href="editor.html">Level Editor</a></p>
+  <!-- ============ LEVEL SELECT ============ -->
+  <div id="screen-levels" class="screen" style="display:none">
+    <div class="panel-head">
+      <button id="btn-levels-back" class="back">← Back</button>
+      <h2>Choose a level</h2>
+    </div>
+    <div id="world-list" class="world-list"></div>
+  </div>
 
-  <script src="js/levels.js?v=5"></script>
-  <script src="js/game.js?v=5"></script>
+  <!-- ============ SETTINGS ============ -->
+  <div id="screen-settings" class="screen" style="display:none">
+    <div class="panel-head">
+      <button id="btn-settings-back" class="back">← Back</button>
+      <h2>Settings</h2>
+    </div>
+    <div class="settings-box">
+      <label class="set-row">Sound volume
+        <input id="set-volume" type="range" min="0" max="100" value="80" />
+      </label>
+      <label class="set-row">Mute all sounds
+        <input id="set-mute" type="checkbox" />
+      </label>
+      <p class="set-note">Sound effects are CC0 assets from <b>kenney.nl</b>. No music — just you and the devil.</p>
+    </div>
+  </div>
+
+  <!-- ============ GAME ============ -->
+  <div id="gamewrap" style="display:none">
+    <div class="hud">
+      <span class="tag">LEVEL DEVIL</span>
+      <span id="hud-name" class="name">—</span>
+      <span class="spacer"></span>
+      <span class="stat">Level <b id="hud-level">1-1</b></span>
+      <span class="stat" id="hud-coins-wrap" style="display:none">Coins <b id="hud-coins">0/0</b></span>
+      <span class="stat" id="hud-stars-wrap" style="display:none">★ <b id="hud-stars">0</b></span>
+      <span class="stat">Deaths <b id="hud-deaths">0</b></span>
+      <span class="stat">Time <b id="hud-time">0.0s</b></span>
+      <button id="btn-pause" class="pause-btn" aria-label="pause">⏸</button>
+    </div>
+
+    <div class="stage">
+      <canvas id="game" width="960" height="540"></canvas>
+    </div>
+
+    <div class="touch">
+      <div class="pad">
+        <button id="btn-left" aria-label="left">◀</button>
+        <button id="btn-right" aria-label="right">▶</button>
+      </div>
+      <button id="btn-jump" aria-label="jump">JUMP</button>
+    </div>
+
+    <p class="foot">Arrows / WASD to move · Space to jump · R restart · Esc pause</p>
+  </div>
+
+  <!-- ============ PAUSE ============ -->
+  <div id="overlay-pause" class="overlay" style="display:none">
+    <div class="card">
+      <h2>Paused</h2>
+      <button id="btn-resume" class="big">▶ Resume</button>
+      <button id="btn-p-restart" class="big alt">↻ Restart level</button>
+      <button id="btn-p-levels" class="big alt">▦ Level select</button>
+      <button id="btn-p-quit" class="big alt">⌂ Title screen</button>
+    </div>
+  </div>
+
+  <!-- ============ CUSTOM/SHARED COMPLETE ============ -->
+  <div id="overlay-complete" class="overlay" style="display:none">
+    <div class="card">
+      <h2 id="comp-title">Level Clear!</h2>
+      <p id="comp-stats" class="comp-stats">—</p>
+      <p id="comp-sub" class="comp-sub">—</p>
+      <button id="btn-comp-again" class="big">↻ Play again</button>
+      <button id="btn-comp-menu" class="big alt">⌂ Done</button>
+    </div>
+  </div>
+
+  <script src="js/levels.js?v=6"></script>
+  <script src="js/render.js?v=6"></script>
+  <script src="js/sfx.js?v=6"></script>
+  <script src="js/share.js?v=6"></script>
+  <script src="js/game.js?v=6"></script>
 </body>
 </html>

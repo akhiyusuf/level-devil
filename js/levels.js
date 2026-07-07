@@ -42,31 +42,34 @@ const doorY = (top = GROUND) => top - DOOR_H;       // door y resting on a surfa
 
 // ---- per-world palettes ----
 const THEMES = {
+  // colour ROLES are distinct per object class in every theme:
+  // terrain=brick · hazards=spike/laser/fire · collectibles=coin/star (gold) ·
+  // interactive=key (teal) / flag (green) · zones=portal (purple) · outline separates overlaps
   tan: {
-    bg: "#d8c6a0", band: "#c6ae82", bandEdge: "#8f7048",
+    bg: "#d8c6a0", band: "#c6ae82", bandEdge: "#8f7048", outline: "#4a2410",
     brick: "#b04a2a", brickShade: "#8f3a20", spike: "#b04a2a",
     player: "#161616", door: "#dedbd3", doorEdge: "#8f8b81", doorDark: "#4a463e",
-    coin: "#8f3a20", ice: "#cfe6ea", iceShade: "#9fc4cc", metal: "#4a4440",
-    laser: "#e5231a", portal: "#6d3fb0", key: "#8f3a20", star: "#c98a1e",
-    fire: ["#e05a1a", "#f0a01e"], enemy: "#2a1c14", flag: "#8f3a20",
+    coin: "#e0a326", ice: "#cfe6ea", iceShade: "#9fc4cc", metal: "#4a4440",
+    laser: "#e5231a", portal: "#6d3fb0", key: "#2e9e94", star: "#e8a821",
+    fire: ["#e05a1a", "#f0a01e"], enemy: "#2a1c14", flag: "#3fa34d",
     hintText: "rgba(74,50,28,0.9)", hintPill: "rgba(216,198,160,0.82)",
   },
   yellow: {
-    bg: "#f2d418", band: "#d9bb0c", bandEdge: "#a68d04",
+    bg: "#f2d418", band: "#d9bb0c", bandEdge: "#a68d04", outline: "#4a2008",
     brick: "#cc4125", brickShade: "#a32f18", spike: "#cc4125",
     player: "#141414", door: "#eae7de", doorEdge: "#9c988c", doorDark: "#45423a",
-    coin: "#a32f18", ice: "#e8f4f6", iceShade: "#b5d8de", metal: "#403a34",
-    laser: "#e5231a", portal: "#5c34a8", key: "#a32f18", star: "#8a5a10",
-    fire: ["#d84a12", "#f09010"], enemy: "#221812", flag: "#a32f18",
+    coin: "#c9921e", ice: "#e8f4f6", iceShade: "#b5d8de", metal: "#403a34",
+    laser: "#e5231a", portal: "#5c34a8", key: "#1f8a80", star: "#a06d08",
+    fire: ["#d84a12", "#f09010"], enemy: "#221812", flag: "#2e8a3d",
     hintText: "rgba(70,55,4,0.9)", hintPill: "rgba(242,212,24,0.85)",
   },
   dark: {
-    bg: "#262336", band: "#1b1930", bandEdge: "#100e1e",
+    bg: "#262336", band: "#1b1930", bandEdge: "#100e1e", outline: "#0c0a14",
     brick: "#5b4a63", brickShade: "#453a4d", spike: "#d84a35", // spikes must pop on the dark bg
     player: "#ececec", door: "#e8d87a", doorEdge: "#a89740", doorDark: "#5c5222",
     coin: "#e8d87a", ice: "#b8d4e8", iceShade: "#87a8c4", metal: "#8a8494",
-    laser: "#ff3b2e", portal: "#9a6ae0", key: "#e8d87a", star: "#f2c14e",
-    fire: ["#ff5a1a", "#ffa01e"], enemy: "#c94b3a", flag: "#e8d87a",
+    laser: "#ff3b2e", portal: "#9a6ae0", key: "#3ab5a8", star: "#f2c14e",
+    fire: ["#ff5a1a", "#ffa01e"], enemy: "#c94b3a", flag: "#4dc95e",
     hintText: "rgba(232,230,240,0.92)", hintPill: "rgba(20,18,34,0.72)",
   },
 };
@@ -522,6 +525,30 @@ const WORLDS = [
     ],
     stars: [{ x: 415, y: 400 }],
     coins: [{ x: 230, y: 460 }, { x: 600, y: 460 }, { x: 840, y: 430 }],
+  },
+
+  // 3-7 wide level: three screens long; the arena at the end locks the camera
+  {
+    name: "The Long Dark",
+    hint: "It goes on. Keep going.",
+    w: 2880, h: 540,
+    spawn: { x: 40, y: onGround() },
+    door: { x: 2760, y: doorY() },
+    solids: [{ x: 0, y: GROUND, w: 2880, h: 40 }],
+    fires: [
+      { x: 500, y: 474, w: 70 },
+      { x: 900, y: 474, w: 70 },
+    ],
+    popspikes: [
+      { x: 1300, y: GROUND, w: 60, h: 40, dir: "up", zone: { x: 1200, y: 380, w: 100, h: 160 } },
+    ],
+    patrols: [{ x: 1600, y: 478, minX: 1540, maxX: 1780, speed: 100 }],
+    camZones: [{ x: 1920, y: 0, w: 960, h: 540 }],   // camera locks to the arena
+    chasers: [
+      { x: 2820, y: 452, w: 34, h: 48, speed: 170, zone: { x: 1960, y: 300, w: 120, h: 240 } },
+    ],
+    stars: [{ x: 1870, y: 400 }],
+    coins: [{ x: 700, y: 460 }, { x: 1100, y: 460 }, { x: 1660, y: 400 }, { x: 2200, y: 460 }],
   },
 ]},
 ];

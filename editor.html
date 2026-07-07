@@ -2,52 +2,126 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Level Devil — Editor</title>
-  <link rel="stylesheet" href="css/editor.css?v=1" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+  <title>Level Devil — Create</title>
+  <link rel="stylesheet" href="css/editor.css?v=6" />
 </head>
 <body>
+
+  <!-- ============ top bar ============ -->
   <div class="topbar">
-    <span class="tag">LEVEL DEVIL <em>editor</em></span>
-    <input id="lv-name" type="text" placeholder="Level name" />
-    <input id="lv-hint" type="text" placeholder="Hint text (shown in-game)" />
-    <select id="lv-theme">
-      <option value="tan">Theme: Tan</option>
-      <option value="yellow">Theme: Yellow</option>
-      <option value="dark">Theme: Dark</option>
-    </select>
-    <label class="chk"><input id="lv-reverse" type="checkbox" /> Reversed controls</label>
+    <button id="btn-menu" class="icon-btn" title="Level menu">☰</button>
+    <span class="tag">CREATE</span>
+    <span id="lv-label" class="lv-label">My Level</span>
     <span class="spacer"></span>
-    <button id="btn-undo" title="Ctrl+Z">↩ Undo</button>
-    <button id="btn-redo" title="Ctrl+Y">↪ Redo</button>
-    <label class="chk"><input id="chk-snap" type="checkbox" checked /> Snap</label>
-    <button id="btn-clear">Clear</button>
-    <button id="btn-import">Import</button>
-    <button id="btn-export">Export</button>
-    <button id="btn-test" class="primary">▶ Test Play</button>
+    <button id="btn-undo" class="icon-btn" title="Undo (Ctrl+Z)">↩</button>
+    <button id="btn-redo" class="icon-btn" title="Redo (Ctrl+Y)">↪</button>
+    <button id="btn-xray" class="icon-btn on" title="X-ray: reveal hidden trolls">👁</button>
+    <button id="btn-help" class="icon-btn" title="Help">?</button>
+    <button id="btn-test" class="test-btn" title="Test play from spawn">▶ Test</button>
+    <button id="btn-share" class="share-btn locked" title="Beat your level in Test to unlock sharing">🔒 Share</button>
   </div>
 
-  <div class="main">
-    <div class="stage"><canvas id="ed" width="960" height="540"></canvas></div>
-    <div class="props" id="props">
-      <h3 id="props-title">Nothing selected</h3>
-      <div id="props-body"></div>
-      <div class="props-actions" id="props-actions" style="display:none">
-        <button id="btn-dup">Duplicate</button>
-        <button id="btn-del" class="danger">Delete</button>
+  <!-- ============ canvas ============ -->
+  <div class="stage" id="stage">
+    <canvas id="ed"></canvas>
+    <canvas id="minimap" title="Minimap — tap to jump"></canvas>
+    <div id="zoom-pill" class="zoom-pill">100%</div>
+    <div id="armed-banner" class="armed-banner" style="display:none"></div>
+  </div>
+
+  <!-- ============ properties bottom sheet ============ -->
+  <div id="sheet" class="sheet" style="display:none">
+    <div class="sheet-grab" id="sheet-grab"><span></span></div>
+    <div class="sheet-head">
+      <h3 id="sheet-title">Object</h3>
+      <div class="sheet-actions">
+        <button id="btn-dup">⧉ Duplicate</button>
+        <button id="btn-del" class="danger">🗑 Delete</button>
+        <button id="btn-sheet-close">✕</button>
       </div>
-      <p class="tip">Click a palette item, then click the canvas to place it.<br/>
-      Drag objects to move. Del = delete, Ctrl+D = duplicate, Ctrl+Z/Y = undo/redo.<br/>
-      Dashed box = trigger zone · dotted line = path/partner (drag the ◆).</p>
     </div>
+    <p id="sheet-desc" class="sheet-desc"></p>
+    <div id="sheet-body" class="sheet-body"></div>
   </div>
 
+  <!-- ============ palette ============ -->
   <div class="toolbar">
+    <div class="info-strip" id="info-strip">Tap an object, then tap the canvas to place it. Drag objects to move them.</div>
     <div class="cats" id="cats"></div>
     <div class="palette" id="palette"></div>
   </div>
 
-  <script src="js/levels.js?v=5"></script>
-  <script src="js/editor.js?v=1"></script>
+  <!-- ============ level menu drawer ============ -->
+  <div id="drawer" class="drawer" style="display:none">
+    <div class="drawer-panel">
+      <h3>Level settings</h3>
+      <label>Level name <input id="lv-name" type="text" maxlength="40" /></label>
+      <label>Author <input id="lv-author" type="text" maxlength="24" placeholder="your name" /></label>
+      <label>Hint (shown in-game) <input id="lv-hint" type="text" maxlength="70" /></label>
+      <label>Theme
+        <select id="lv-theme">
+          <option value="tan">Tan — The Room</option>
+          <option value="yellow">Yellow — The Sun</option>
+          <option value="dark">Dark — The Night</option>
+        </select>
+      </label>
+      <div class="two">
+        <label>Width <input id="lv-w" type="number" min="960" max="9600" step="480" /></label>
+        <label>Height <input id="lv-h" type="number" min="540" max="3240" step="270" /></label>
+      </div>
+      <label class="chk"><input id="lv-reverse" type="checkbox" /> Reversed controls (whole level)</label>
+      <hr />
+      <div class="drawer-btns">
+        <button id="btn-import">⤓ Import file</button>
+        <button id="btn-export">⤒ Export file</button>
+        <button id="btn-tour">🎓 Replay tour</button>
+        <button id="btn-clear" class="danger">✕ Clear level</button>
+      </div>
+      <a class="home-link" href="index.html">← Back to the game</a>
+      <button id="btn-drawer-close" class="drawer-close">Done</button>
+    </div>
+  </div>
+
+  <!-- ============ share dialog ============ -->
+  <div id="share-dlg" class="modal" style="display:none">
+    <div class="modal-card">
+      <h3>Share your level 🎉</h3>
+      <p class="modal-sub">Verified beatable ✓ — anyone with this link (or code) can play it. Send it anywhere.</p>
+      <label class="share-lab">Link</label>
+      <div class="copy-row"><input id="share-url" readonly /><button id="copy-url">Copy</button></div>
+      <label class="share-lab">Code (paste into the game's title screen)</label>
+      <div class="copy-row"><textarea id="share-code" readonly rows="3"></textarea><button id="copy-code">Copy</button></div>
+      <button id="share-close" class="modal-close">Done</button>
+    </div>
+  </div>
+
+  <!-- ============ help panel ============ -->
+  <div id="help-dlg" class="modal" style="display:none">
+    <div class="modal-card">
+      <h3>How the editor works</h3>
+      <div id="help-body" class="help-body"></div>
+      <button id="help-close" class="modal-close">Got it</button>
+    </div>
+  </div>
+
+  <!-- ============ guided tour ============ -->
+  <div id="tour" class="modal" style="display:none">
+    <div class="modal-card tour-card">
+      <h3 id="tour-title">Welcome!</h3>
+      <p id="tour-text"></p>
+      <div class="tour-nav">
+        <span id="tour-step" class="tour-step">1/6</span>
+        <button id="tour-skip">Skip</button>
+        <button id="tour-next" class="primary">Next →</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/levels.js?v=6"></script>
+  <script src="js/render.js?v=6"></script>
+  <script src="js/sfx.js?v=6"></script>
+  <script src="js/share.js?v=6"></script>
+  <script src="js/editor.js?v=6"></script>
 </body>
 </html>

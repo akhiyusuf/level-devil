@@ -1,97 +1,94 @@
-# Level Devil — clone
+# Level Devil — Play & Create
 
-A browser clone of the "troll platformer" **Level Devil**: the level *looks*
-simple — just walk your little pixel guy to the exit door — but every surface
-is a liar. Floors vanish, spikes spring from the ground, slabs crash from the
-ceiling, doors run away (or were never real), gravity flips, and the controls
-betray you. Die instantly, respawn instantly, learn the trick, try again.
+A browser clone of the "troll platformer" **Level Devil** — walk your little
+pixel guy to the exit door, except every surface is a liar — now grown into a
+small platform: a full game shell, big scrolling levels, real sound, and a
+mobile-friendly **level editor** with Geometry-Dash-style *verify-then-share*.
 
-Fully pixel-art rendered (320×180 buffer, nearest-neighbor upscale), no build
-step, no dependencies. Vanilla HTML5 canvas + JS. Includes a **level editor**.
+Pixel-art rendered (buffer + nearest-neighbor upscale), vanilla JS, no build
+step, no dependencies, static hosting.
 
 ## Play
 
-Open `index.html` in any modern browser, or serve the folder:
+Open `index.html` (or serve the folder: `python3 -m http.server 8000`).
 
-```bash
-python3 -m http.server 8000   # then visit http://localhost:8000
-```
+- **Title screen** → Play (world/level select with saved progress), Create
+  (editor), Settings (SFX volume/mute), and a **paste-a-code box** to play
+  levels friends share with you.
+- Keys: ←→/AD move · Space jump · R restart · Esc pause.
+- Touch controls appear on mobile.
 
-| Action | Keys |
-| ------ | ---- |
-| Move   | ← → or A D |
-| Jump   | Space, W, or ↑ |
-| Restart level | R |
+**25 levels across 3 themed worlds** — tan, icon-yellow, dark — every one
+machine-verified beatable. World 3 ends with a three-screen-wide level that
+shows off the scrolling camera and a camera-locked arena.
 
-Touch controls appear automatically on touch devices.
+## Camera & big levels
 
-## Worlds
+Levels can be up to ~10 screens (9600×3240). The camera follows the player,
+clamped to level bounds. **Camera zones** lock the view to a region while the
+player is inside — players can't see past them, so what's ahead stays a
+surprise. You always spawn seeing only the spawn area.
 
-**24 levels across 3 themed worlds** (every level machine-verified beatable):
+## The editor (`editor.html`)
 
-- **World 1 · The Room** (tan) — the classics: fake floors, disappearing and
-  collapsing platforms, pop-up spikes, ceiling crushers, the runaway door,
-  reversed controls.
-- **World 2 · The Sun** (icon yellow) — moving platforms, ice, pressure plates
-  + gates (and what pressing buttons wakes up), conveyors + saws, laser
-  timing (and one laser that punishes jumpers), a fake exit with teeth,
-  gravity-flip ceiling walking, an invisible staircase.
-- **World 3 · The Dark** (night, white character) — patrol enemies, troll
-  portals, a key quest with a *fake checkpoint*, alternating conveyor lines
-  under a jump-nerf field, a crusher/laser gauntlet, and a finale where the
-  way out is behind you.
+True **WYSIWYG**: the canvas renders with the game's actual renderer,
+animations paused — what you see is exactly what players get.
 
-## Level editor
+- **Palette with sprite thumbnails** (drawn by the game renderer), grouped:
+  Terrain / Hazards / Traps / Interactive / Collect / Level. Every object has
+  a plain-English description with troll tips.
+- **X-ray toggle** 👁 ghosts the invisible trolls (fake blocks, invisible
+  platforms, pop-up spikes, hidden doors) so *you* can see them while editing;
+  toggle off to preview the player's view.
+- Pan (drag empty space), pinch/scroll zoom, **minimap**, level size settings.
+- Trigger zones (dashed), path/portal ends (◆ diamonds), resize handles —
+  all draggable. Overlapping objects? Tap again to cycle selection.
+- Bottom-sheet properties panel, first-run **guided tour**, ? help reference.
+- Works on phones: touch drag, pinch zoom, thumb-sized UI.
 
-Open `editor.html` (linked from the game footer).
+### Verify → Share
 
-- **Bottom toolbar** = the object palette, grouped by category (Terrain,
-  Hazards, Traps, Interactive, Collectibles) — click an item, click the canvas.
-- **Side panel** = properties of the selected object (position, size, speed,
-  delay, laser cycle, gate ids, button targets, key ids, fake/real, …).
-- Drag to move; corner handle resizes; dashed box = trigger zone; ◆ marker =
-  path end / portal exit (drag them).
-- Grid snap, undo/redo (Ctrl+Z/Y), duplicate (Ctrl+D), delete (Del).
-- **Export/Import** level JSON, autosave to localStorage.
-- **▶ Test Play** launches the real game with your level
-  (`index.html?custom=1`).
+**You must beat your own level** (▶ Test, from spawn) before Share unlocks —
+so every shared level is provably beatable. Sharing produces a **link and a
+code** (`LD1.…`, the whole level deflate-compressed into a URL-safe string —
+no server involved). Any edit re-locks sharing until you verify again.
 
-## Engine mechanics (all editor-placeable)
+## Community roadmap (backend phase)
 
-Terrain: ground, one-way platforms, fake blocks, invisible platforms, ice,
-conveyors, disappearing/collapsing/appearing floors, moving platforms, gates.
-Hazards: spikes (up/down), pop-up spikes, cyclic crushers, saw blades (static
-or patrolling), cycling lasers, fire, chaser blocks, patrol enemies.
-Traps: gravity-flip zones, reverse-control zones, jump-modifier zones, portal
-pairs, fake exit doors (`spikes` or `flee`).
-Interactive: pressure plates (toggle/hold → gate targets), keys + locked
-gates, checkpoints (and fake checkpoints).
-Collectibles: coins, stars. Plus per-level theme, hint text, reversed
-controls, runaway/hidden doors.
+Share codes are the serverless phase 1. The level format already carries
+`author`, `name` and the verified flag, so a phase-2 backend (accounts, browse
+/rate/play counts, creator ad revenue) can bolt on without changing the format.
+Ads/monetization need real hosting + an ad network — documented intent, not
+shipped from GitHub Pages.
 
-## How it's built
+## Sound
 
-- `index.html` — game canvas + HUD + touch controls
-- `editor.html`, `js/editor.js`, `css/editor.css` — the level editor
-- `js/levels.js` — pure data: `WORLDS`/`THEMES` and every level as behaviour
-  buckets in one schema (shared with the editor)
-- `js/game.js` — the engine: fixed-timestep physics (120 Hz), axis-separated
-  AABB with crush detection, gravity-direction support, trap state machines,
-  bitmap-sprite character animation (run/jump/fall/idle + door-enter
-  sequence), pixel buffer renderer
+Real **CC0 sound assets** from [Kenney](https://kenney.nl) (Interface, Impact,
+Digital Audio, Sci-Fi packs — see `assets/sfx/LICENSE.txt`). Jump, land,
+death, coin, star, key, doors, plates, gates, crusher slams, portals, UI —
+**no music**. Volume + mute in Settings, persisted.
 
-### Design budget for level authors
+## Code layout
 
-Play area 960×540, ground top at y=500. Jump: ~126px high, ~195px far at full
-run. Keep gaps ≤ 160px and step-ups ≤ 100px unless you mean it.
+- `js/render.js` — shared renderer + runtime builder (game & editor draw with
+  the same code; also renders the palette thumbnails)
+- `js/game.js` — physics (120 Hz fixed step, gravity direction, crush
+  detection), traps, camera, shell screens, progress save
+- `js/levels.js` — themes (per-class colour roles + outlines) and all level
+  data as plain-schema behaviour buckets
+- `js/editor.js` — the editor; `js/share.js` — level⇄code codec + hash;
+  `js/sfx.js` — sound manager
+- `assets/sfx/` — CC0 audio
 
-## Roadmap (editor palette wishlist)
+### Level design budget
 
-Not yet implemented, candidates for future passes: breakable/rising blocks,
-sticky platforms, wall spikes, rotating saw arms, boulders, bombs, lava/acid,
-trap doors, teleport traps, wall-shift/moving walls, camera trolls (shake,
-flip, lie), timed buttons/levers, secret doors, elevators, circular/swing
-platforms, flying/jumping/turret enemies, decorations layer, logic gates
-(AND/OR/NOT, timers, counters, randomizers, event chains), camera zones,
-audio triggers, death-count-conditioned trolls ("after N deaths"), fake win
-screens/credits, player shrink/grow, delayed/chained explosions.
+Jump: ~126px high, ~195px far at full speed. Gaps ≤160px, step-ups ≤100px.
+Ground line at y=500 per 540 of height.
+
+## Still on the wishlist
+
+Breakable/rising/sticky blocks, wall spikes, boulders, bombs, lava, timed
+buttons, levers, elevators, swing platforms, more enemies, decorations, logic
+gates (AND/OR/timers/randomizers), camera shake/flip trolls, "after N deaths"
+triggers, fake win screens, player shrink/grow, accounts + public level
+browser + creator revenue (needs backend).

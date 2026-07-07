@@ -1,5 +1,5 @@
 # brief
 
-- Level Devil clone: vanilla JS, pixel-art (320×180 buffer → 3x nearest-neighbor). 24 levels / 3 themed worlds (tan/yellow/dark), all machine-verified beatable (scratchpad solve4.mjs pattern: in-page autopilot via window.__ld hook).
-- Engine `js/game.js`: 120Hz physics, gravDir, ice/conveyor/movers/oneways, crush detection, bitmap sprite char + door-enter anim. Data `js/levels.js` (WORLDS/THEMES + behaviour buckets). Editor `editor.html`+`js/editor.js` → test-play via `index.html?custom=1` + localStorage `ld_custom_level`.
-- Jump budget: 126px high / 195px far. Deploys via GitHub Pages off branch `claude/level-devil-clone-rnpfyi`; bump `?v=` cache tags in index.html when JS/CSS change.
+- Level Devil "Play & Create": pixel platformer + WYSIWYG mobile editor. 25 levels / 3 worlds, all machine-verified (scratchpad solve5.mjs, in-page autopilot via __ld hook; editor hook __ed).
+- Shared renderer `js/render.js` (game+editor+thumbnails, camera-aware, per-class colors+outlines). `js/game.js` = physics/camera/camZones/shell/progress. `js/share.js` = LD1. deflate codes + hash; verify-then-share gate via localStorage ld_verify handshake. `js/sfx.js` + assets/sfx (Kenney CC0, no music).
+- Levels up to 9600×3240 (w/h + camZones in schema). Jump budget 126 up / 195 far. Cache tags ?v=6. Deploy: push branch claude/level-devil-clone-rnpfyi → GitHub Pages.

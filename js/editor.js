@@ -5,6 +5,8 @@
   "use strict";
 
   const S = 3, SNAP = 10;
+  const TAP_SLOP = 8;        // screen px a finger may wobble and still count as a tap
+  const LONGPRESS = 450;     // ms hold -> quick-action bar (touch/pen only)
   const sfx = (n) => { if (window.SFX) SFX.play(n); };
   const $ = (id) => document.getElementById(id);
   const mqDesktop = matchMedia("(min-width: 980px)");
@@ -23,23 +25,23 @@
       desc: "Slippery floor. Players keep sliding after they stop pressing. Put a pit after it." },
     { t: "conveyors", cat: "Terrain", label: "Conveyor", mk: (x, y) => ({ x, y, w: 200, h: 40, belt: 140 }),
       desc: "Moving belt floor. Positive push = right, negative = left. Make them fight the current." },
-    { t: "disappear", cat: "Terrain", label: "Vanishing", mk: (x, y) => ({ x, y, w: 90, h: 22, delay: 0.25 }),
-      desc: "TROLL — fades away moments after being stood on. Keep 'em moving." },
+    { t: "disappear", cat: "Terrain", label: "Vanishing", mk: (x, y) => ({ x, y, w: 90, h: 22, delay: 0.25, respawn: 0 }),
+      desc: "TROLL — fades away moments after being stood on. Keep 'em moving. Set a respawn time to let it come back." },
     { t: "collapse", cat: "Terrain", label: "Crumbling", mk: (x, y) => ({ x, y, w: 110, h: 22, delay: 0.18 }),
       desc: "TROLL — drops out of the world shortly after a foot touches it." },
     { t: "appearing", cat: "Terrain", label: "Appearing", zone: 1, mk: (x, y) => ({ x, y, w: 90, h: 16, zone: { x: x - 140, y: y - 60, w: 120, h: 140 } }),
       desc: "Hidden until the player enters its trigger zone, then becomes solid. A reward for the brave." },
-    { t: "movers", cat: "Terrain", label: "Moving Platform", partner: ["x2", "y2"], mk: (x, y) => ({ x, y, w: 90, h: 16, x2: x + 180, y2: y, speed: 120 }),
+    { t: "movers", cat: "Terrain", label: "Moving Platform", partner: ["x2", "y2"], mk: (x, y) => ({ x, y, w: 90, h: 16, x2: x + 180, y2: y, speed: 120, pause: 0 }),
       desc: "Rides back and forth between two points and carries the player. Drag the ◆ to set the far end." },
     { t: "gates", cat: "Terrain", label: "Gate", mk: (x, y) => ({ id: "g" + (Date.now() % 10000), x, y, w: 24, h: 128 }),
       desc: "A wall that can open. Link a Pressure Plate to it, or set a Key to unlock it." },
 
-    { t: "spikes", cat: "Hazards", label: "Spikes", enums: { dir: ["up", "down"] }, mk: (x, y) => ({ x, y, w: 120, h: 14, dir: "up" }),
-      desc: "The classic. Touch = death. Point them up from floors or down from ceilings." },
-    { t: "popspikes", cat: "Hazards", label: "Pop-up Spikes", zone: 1, mk: (x, y) => ({ x, y, w: 60, h: 40, dir: "up", zone: { x: x - 110, y: y - 120, w: 110, h: 160 } }),
-      desc: "TROLL — hidden in the floor until the trigger zone is entered, then springs up. Put the zone where they'll walk." },
-    { t: "fallers", cat: "Hazards", label: "Crusher", zone: 1, mk: (x, y) => ({ x, y, w: 80, h: 80, deadly: true, zone: { x: x - 110, y: 0, w: 110, h: 540 } }),
-      desc: "Spiked slab that slams down when its zone is entered, then keeps cycling forever. Time it or die." },
+    { t: "spikes", cat: "Hazards", label: "Spikes", enums: { dir: ["up", "down", "left", "right"] }, mk: (x, y) => ({ x, y, w: 120, h: 14, dir: "up" }),
+      desc: "The classic. Touch = death. Point them up from floors, down from ceilings, or sideways off walls." },
+    { t: "popspikes", cat: "Hazards", label: "Pop-up Spikes", zone: 1, enums: { dir: ["up", "down"] }, mk: (x, y) => ({ x, y, w: 60, h: 40, dir: "up", rise: 8, retract: false, zone: { x: x - 110, y: y - 120, w: 110, h: 160 } }),
+      desc: "TROLL — hidden in the floor (or ceiling) until the trigger zone is entered, then springs out. Put the zone where they'll walk." },
+    { t: "fallers", cat: "Hazards", label: "Crusher", zone: 1, mk: (x, y) => ({ x, y, w: 80, h: 80, deadly: true, rest: 420, gap: 0.7, hold: 0.45, up: 640, zone: { x: x - 110, y: 0, w: 110, h: 540 } }),
+      desc: "Spiked slab that slams down when its zone is entered, then keeps cycling forever. Tune its rhythm below — time it or die." },
     { t: "saws", cat: "Hazards", label: "Saw Blade", partner: ["cx2", "cy2"], mk: (x, y) => ({ cx: x, cy: y, r: 26, cx2: x, cy2: y - 110, speed: 110 }),
       desc: "Spinning blade, deadly to touch. Drag the ◆ to give it a patrol path (same spot = stationary)." },
     { t: "lasers", cat: "Hazards", label: "Laser", mk: (x, y) => ({ x, y, w: 8, h: 300, on: 0.7, off: 1.1, phase: 0 }),
@@ -48,7 +50,7 @@
       desc: "A strip of flames on the floor. Jump it." },
     { t: "chasers", cat: "Hazards", label: "Chaser", zone: 1, mk: (x, y) => ({ x, y, w: 34, h: 48, speed: 165, zone: { x: x + 100, y: y - 100, w: 140, h: 200 } }),
       desc: "TROLL — spiked block that wakes when its zone is entered and slides toward the player forever. Jumpable." },
-    { t: "patrols", cat: "Hazards", label: "Patrol", mk: (x, y) => ({ x, y, minX: x - 80, maxX: x + 120, speed: 100 }),
+    { t: "patrols", cat: "Hazards", label: "Patrol", mk: (x, y) => ({ x, y, w: 24, h: 22, minX: x - 80, maxX: x + 120, speed: 100 }),
       desc: "Little enemy that marches between two points. Deadly on touch — hop over it." },
 
     { t: "gravZones", cat: "Traps", label: "Gravity Flip", mk: (x, y) => ({ x, y, w: 60, h: 140 }),
@@ -62,7 +64,7 @@
     { t: "fakeExits", cat: "Traps", label: "Fake Exit", enums: { action: ["spikes", "flee"] }, mk: (x, y) => ({ x, y, action: "spikes" }),
       desc: "TROLL — looks IDENTICAL to the real door. Either it bites, or it vanishes. Triggering it reveals the real door (tip: set the real door to hidden)." },
 
-    { t: "buttons", cat: "Interactive", label: "Pressure Plate", enums: { mode: ["toggle", "hold"] }, mk: (x, y) => ({ x, y, mode: "toggle", targets: [] }),
+    { t: "buttons", cat: "Interactive", label: "Pressure Plate", enums: { mode: ["toggle", "hold"] }, mk: (x, y) => ({ x, y, w: 44, mode: "toggle", targets: [] }),
       desc: "Stand on it to open/close Gates. Tick which gates it controls in the panel." },
     { t: "keys", cat: "Interactive", label: "Key", mk: (x, y) => ({ x, y, id: "k1" }),
       desc: "Collect to permanently open every Gate set to need this key." },
@@ -88,8 +90,8 @@
     switch (t) {
       case "saws": return { x: o.cx - o.r, y: o.cy - o.r, w: o.r * 2, h: o.r * 2 };
       case "fires": return { x: o.x, y: o.y, w: o.w, h: 26 };
-      case "patrols": return { x: o.x, y: o.y, w: 24, h: 22 };
-      case "buttons": return { x: o.x, y: o.y - 10, w: 44, h: 10 };
+      case "patrols": return { x: o.x, y: o.y, w: o.w ?? 24, h: o.h ?? 22 };
+      case "buttons": return { x: o.x, y: o.y - 10, w: o.w ?? 44, h: 10 };
       case "coins": return { x: o.x - 12, y: o.y - 12, w: 24, h: 24 };
       case "stars": return { x: o.x - 11, y: o.y - 11, w: 22, h: 22 };
       case "keys": return { x: o.x - 10, y: o.y - 8, w: 20, h: 16 };
@@ -224,6 +226,7 @@
     ctx.fillRect(0, 0, cv.width, cv.height);
     ctx.drawImage(worldBuf, view.x / S, view.y / S, cv.width / view.zoom / S, cv.height / view.zoom / S, 0, -sheetShift, cv.width, cv.height);
     drawOverlays();
+    drawPill();
     drawMinimap();
     requestAnimationFrame(frame);
   }
@@ -258,15 +261,25 @@
     ctx.strokeStyle = "#00d0ff"; ctx.lineWidth = 2;
     ctx.strokeRect(w2sX(rc.x) - 2, w2sY(rc.y) - 2, rc.w * view.zoom + 4, rc.h * view.zoom + 4);
     chip(w2sX(rc.x), w2sY(rc.y) - 20, sel.i != null ? regOf(sel.t).label : SINGLETONS[sel.t].label, "#00d0ff");
-    if (sel.i != null && o.w != null && o.h != null && sel.t !== "portals") {
+    // finger-sized handle square with contrast ring
+    const handle = (sx, sy) => {
+      const hp = 22;
+      ctx.fillStyle = "#04303c";
+      ctx.fillRect(sx - hp / 2 - 2, sy - hp / 2 - 2, hp + 4, hp + 4);
       ctx.fillStyle = "#00d0ff";
-      ctx.fillRect(w2sX(rc.x + rc.w) - 6, w2sY(rc.y + rc.h) - 6, 12, 12);
-    }
+      ctx.fillRect(sx - hp / 2, sy - hp / 2, hp, hp);
+      ctx.strokeStyle = "#04303c"; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(sx - 4, sy + 4); ctx.lineTo(sx + 4, sy - 4); ctx.stroke();
+    };
+    if (sel.i != null && o.w != null && o.h != null && sel.t !== "portals") handle(w2sX(rc.x + rc.w), w2sY(rc.y + rc.h));
+    if (sel.i != null && sel.t === "saws") { handle(w2sX(o.cx + o.r), w2sY(o.cy)); chip(w2sX(o.cx + o.r) + 14, w2sY(o.cy) - 8, "size — drag me", "#00a0c8"); }
+    if (sel.i != null && sel.t === "fires") { handle(w2sX(o.x + o.w), w2sY(o.y + 13)); chip(w2sX(o.x + o.w) + 14, w2sY(o.y + 5), "width — drag me", "#00a0c8"); }
     if (o.zone) {
-      ctx.setLineDash([6, 5]); ctx.strokeStyle = "#00d0ff";
+      ctx.setLineDash([6, 5]); ctx.strokeStyle = "#00d0ff"; ctx.lineWidth = 2;
       ctx.strokeRect(w2sX(o.zone.x), w2sY(o.zone.y), o.zone.w * view.zoom, o.zone.h * view.zoom);
       ctx.setLineDash([]);
       chip(w2sX(o.zone.x) + 3, w2sY(o.zone.y) + 3, "trigger zone — drag me", "#00a0c8");
+      handle(w2sX(o.zone.x + o.zone.w), w2sY(o.zone.y + o.zone.h));
     }
     if (sel.i != null) {
       const pb = partnerRect(sel.t, o);
@@ -292,6 +305,19 @@
     }
   }
 
+  function drawPill() {
+    if (!pill) return;
+    if (performance.now() > pill.until) { pill = null; return; }
+    ctx.font = "12px system-ui";
+    const w = ctx.measureText(pill.txt).width + 18;
+    const px2 = Math.max(6, Math.min(cv.width - w - 6, pill.x - w / 2));
+    ctx.fillStyle = "rgba(10,7,5,0.92)";
+    ctx.beginPath(); ctx.roundRect(px2, pill.y, w, 24, 12); ctx.fill();
+    ctx.strokeStyle = "#00d0ff"; ctx.lineWidth = 1; ctx.stroke();
+    ctx.fillStyle = "#7ee6ff"; ctx.textAlign = "left"; ctx.textBaseline = "middle";
+    ctx.fillText(pill.txt, px2 + 9, pill.y + 12);
+  }
+
   // ================= hit testing =================
   const inR = (x, y, r, pad = 0) => x >= r.x - pad && x <= r.x + r.w + pad && y >= r.y - pad && y <= r.y + r.h + pad;
   function hitAll(wx, wy) {
@@ -311,11 +337,14 @@
     const o = selObj();
     if (!o || sel.i == null) return null;
     const rc = rectOf(sel.t, o);
-    const hs = 8 / view.zoom;
-    if (o.w != null && o.h != null && sel.t !== "portals" &&
-        inR(wx, wy, { x: rc.x + rc.w - hs, y: rc.y + rc.h - hs, w: hs * 2, h: hs * 2 })) return "resize";
+    const hs = 22 / view.zoom;                              // 44 screen-px grab boxes — finger-sized
+    const near = (px, py) => Math.abs(wx - px) <= hs && Math.abs(wy - py) <= hs;
+    if (sel.t === "saws" && near(o.cx + o.r, o.cy)) return "radius";
+    if (sel.t === "fires" && near(o.x + o.w, o.y + 13)) return "resizeW";
+    if (o.w != null && o.h != null && sel.t !== "portals" && near(rc.x + rc.w, rc.y + rc.h)) return "resize";
+    if (o.zone && near(o.zone.x + o.zone.w, o.zone.y + o.zone.h)) return "zoneresize";
     const pb = partnerRect(sel.t, o);
-    if (pb && inR(wx, wy, pb, 6)) return "partner";
+    if (pb && inR(wx, wy, pb, hs / 2)) return "partner";
     if (o.zone && inR(wx, wy, o.zone, 4)) return "zone";
     return null;
   }
@@ -323,38 +352,60 @@
   // ================= pointer interactions =================
   const pointers = new Map();
   let drag = null, pinch = null, lastTapHits = [], lastTapIdx = 0;
+  let lpTimer = null;
+  const lpCancel = () => { if (lpTimer) { clearTimeout(lpTimer); lpTimer = null; } };
+  let pill = null;   // {x, y, txt, until} — "2 of 3 here" overlap hint
 
   cv.addEventListener("pointerdown", (e) => {
-    cv.setPointerCapture(e.pointerId);
+    try { cv.setPointerCapture(e.pointerId); } catch (_) {}
     pointers.set(e.pointerId, { x: e.offsetX, y: e.offsetY });
+    qabHide();
     if (pointers.size === 2) {
       const [a, b] = [...pointers.values()];
-      pinch = { d0: Math.hypot(a.x - b.x, a.y - b.y), z0: view.zoom };
-      drag = null;
+      pinch = { d0: Math.hypot(a.x - b.x, a.y - b.y), z0: view.zoom, cx: (a.x + b.x) / 2, cy: (a.y + b.y) / 2 };
+      drag = null; lpCancel();
       return;
     }
     const { x: wx, y: wy } = s2w(e.offsetX, e.offsetY);
     if (placing) {
+      if (placing.singleton) {                     // spawn/door: armed taps MOVE it, never duplicate
+        const tgt = placing.singleton === "spawn" ? level.spawn : level.door;
+        const [hw, hh] = placing.singleton === "spawn" ? [15, 17] : [22, 32];
+        tgt.x = snap(wx - hw); tgt.y = snap(wy - hh);
+        sel = { t: placing.singleton };
+        sfx("appear"); push(); buildProps(); dirty = true;
+        return;
+      }
       const o = placing.mk(snap(wx), snap(wy));
       level[placing.t].push(o);
       sel = { t: placing.t, i: level[placing.t].length - 1 };
-      if (!e.shiftKey) setPlacing(null);
+      placing.count = (placing.count || 0) + 1;
+      armedText();
       sfx("appear");
-      push(); buildProps(); ensureVisible();
+      push(); buildProps();                        // stays ARMED — tap ✕ / Esc / the tile to finish
       return;
     }
     const grab = grabTest(wx, wy);
-    if (grab) { drag = { mode: grab, lx: wx, ly: wy, moved: false }; return; }
+    if (grab) { drag = { mode: grab, lx: wx, ly: wy, sx: e.offsetX, sy: e.offsetY, moved: false }; return; }
     const hits = hitAll(wx, wy);
     if (hits.length) {
-      const same = JSON.stringify(hits) === JSON.stringify(lastTapHits);
-      lastTapIdx = same ? (lastTapIdx + 1) % hits.length : 0;
-      lastTapHits = hits;
-      sel = hits[lastTapIdx];
-      drag = { mode: "move", lx: wx, ly: wy, moved: false };
+      // keep the current selection if it's under the finger (so a drag moves it); else select topmost.
+      // cycling through the stack happens on pointerUP so it never fights a drag.
+      const selKey = JSON.stringify(sel);
+      if (!hits.some((h) => JSON.stringify(h) === selKey)) {
+        sel = hits[0];
+        buildProps();
+        if (!mqDesktop.matches) ensureVisible();
+      }
+      drag = { mode: "move", lx: wx, ly: wy, sx: e.offsetX, sy: e.offsetY, moved: false, hits };
       sfx("click");
-      buildProps();
-      if (!mqDesktop.matches) ensureVisible();
+      if (e.pointerType !== "mouse") {             // long-press -> quick actions
+        lpCancel();
+        lpTimer = setTimeout(() => {
+          lpTimer = null;
+          if (drag && !drag.moved) { drag = null; if (navigator.vibrate) navigator.vibrate(10); qabShow(); }
+        }, LONGPRESS);
+      }
     } else {
       drag = { mode: "pan", lx: e.offsetX, ly: e.offsetY, moved: false };
     }
@@ -372,6 +423,9 @@
       clampView();
       const after = s2w(cx0, cy0);
       view.x += before.x - after.x; view.y += before.y - after.y;
+      view.x -= (cx0 - pinch.cx) / view.zoom;      // two-finger drag also PANS — escape hatch in crowded areas
+      view.y -= (cy0 - pinch.cy) / view.zoom;
+      pinch.cx = cx0; pinch.cy = cy0;
       clampView();
       return;
     }
@@ -384,10 +438,10 @@
       clampView();
       return;
     }
+    if (!drag.moved && Math.abs(e.offsetX - drag.sx) < TAP_SLOP && Math.abs(e.offsetY - drag.sy) < TAP_SLOP) return;
+    drag.moved = true; lpCancel();
     const { x: wx, y: wy } = s2w(e.offsetX, e.offsetY);
     const dx = wx - drag.lx, dy = wy - drag.ly;
-    if (!drag.moved && Math.abs(dx) < 3 && Math.abs(dy) < 3) return;
-    drag.moved = true;
     const o = selObj();
     if (!o) return;
     const mv = (obj, kx, ky) => { obj[kx] = snap(obj[kx] + dx); obj[ky] = snap(obj[ky] + dy); };
@@ -404,6 +458,13 @@
     } else if (drag.mode === "resize") {
       o.w = Math.max(10, snap(o.w + dx));
       o.h = Math.max(6, snap(o.h + dy));
+    } else if (drag.mode === "radius") {
+      o.r = Math.max(10, snap(Math.hypot(wx - o.cx, wy - o.cy)));
+    } else if (drag.mode === "resizeW") {
+      o.w = Math.max(20, snap(wx - o.x));
+    } else if (drag.mode === "zoneresize") {
+      o.zone.w = Math.max(20, snap(o.zone.w + dx));
+      o.zone.h = Math.max(20, snap(o.zone.h + dy));
     }
     drag.lx = snap(drag.lx + dx); drag.ly = snap(drag.ly + dy);
     dirty = true;
@@ -412,11 +473,21 @@
   const endPointer = (e) => {
     pointers.delete(e.pointerId);
     if (pointers.size < 2) pinch = null;
-    if (drag) {
-      if (drag.mode === "pan" && !drag.moved) { sel = null; sheetShift = 0; buildProps(); }
-      else if (drag.moved && drag.mode !== "pan") { push(); buildProps(); }
-      drag = null;
+    lpCancel();
+    if (!drag) return;
+    if (drag.mode === "pan" && !drag.moved) { sel = null; sheetShift = 0; buildProps(); }
+    else if (drag.mode === "move" && !drag.moved && drag.hits) {
+      // clean tap on an object stack -> cycle selection; show "n of m" when stacked
+      const same = JSON.stringify(drag.hits) === JSON.stringify(lastTapHits);
+      lastTapIdx = same ? (lastTapIdx + 1) % drag.hits.length : 0;
+      lastTapHits = drag.hits;
+      sel = drag.hits[lastTapIdx];
+      if (drag.hits.length > 1) pill = { x: e.offsetX, y: e.offsetY - 34, txt: `${lastTapIdx + 1} of ${drag.hits.length} here — tap to cycle`, until: performance.now() + 1700 };
+      buildProps();
+      if (!mqDesktop.matches) ensureVisible();
     }
+    else if (drag.moved && drag.mode !== "pan") { push(); buildProps(); }
+    drag = null;
   };
   cv.addEventListener("pointerup", endPointer);
   cv.addEventListener("pointercancel", endPointer);
@@ -431,12 +502,17 @@
     clampView();
   }, { passive: false });
 
-  mini.addEventListener("pointerdown", (e) => {
+  let miniDrag = false;
+  function scrubTo(e) {
     const r = mini.getBoundingClientRect();
     view.x = (e.clientX - r.left) / r.width * level.w - cv.width / view.zoom / 2;
     view.y = (e.clientY - r.top) / r.height * level.h - cv.height / view.zoom / 2;
     clampView();
-  });
+  }
+  mini.addEventListener("pointerdown", (e) => { try { mini.setPointerCapture(e.pointerId); } catch (_) {} miniDrag = true; scrubTo(e); });
+  mini.addEventListener("pointermove", (e) => { if (miniDrag) scrubTo(e); });
+  mini.addEventListener("pointerup", () => { miniDrag = false; });
+  mini.addEventListener("pointercancel", () => { miniDrag = false; });
 
   addEventListener("keydown", (e) => {
     if (["INPUT", "SELECT", "TEXTAREA"].includes(document.activeElement.tagName)) return;
@@ -451,12 +527,32 @@
       const d = e.shiftKey ? 1 : SNAP;
       const dx = e.key === "ArrowLeft" ? -d : e.key === "ArrowRight" ? d : 0;
       const dy = e.key === "ArrowUp" ? -d : e.key === "ArrowDown" ? d : 0;
-      if (sel.t === "saws") { o.cx += dx; o.cy += dy; if (o.cx2 != null) { o.cx2 += dx; o.cy2 += dy; } }
-      else if (sel.t === "portals") { o.ax += dx; o.ay += dy; }
-      else { o.x += dx; o.y += dy; }
-      push(); dirty = true; buildProps();
+      nudgeBy(dx, dy);
     }
   });
+
+  // ================= long-press quick-action bar =================
+  function qabShow() {
+    const o = selObj();
+    if (!o) return;
+    const rc = sel.i != null ? rectOf(sel.t, o) : { x: o.x, y: o.y, w: 44, h: 64 };
+    const q = $("qab");
+    q.style.display = "flex";
+    $("qab-dup").style.display = sel.i != null ? "" : "none";
+    $("qab-del").style.display = sel.i != null ? "" : "none";
+    const qw = sel.i != null ? 200 : 92;
+    q.style.left = Math.max(8, Math.min(cv.width - qw - 8, w2sX(rc.x + rc.w / 2) - qw / 2)) + "px";
+    q.style.top = Math.max(8, w2sY(rc.y) - 64) + "px";
+  }
+  function qabHide() { const q = $("qab"); if (q) q.style.display = "none"; }
+  $("qab-dup").onclick = () => { sfx("click"); qabHide(); dupSel(); };
+  $("qab-del").onclick = () => { qabHide(); deleteSel(); };
+  $("qab-nudge").onclick = () => {
+    sfx("click"); qabHide(); buildProps();
+    if (!mqDesktop.matches) ensureVisible();
+    const np = document.querySelector(".nudgewrap");
+    if (np) np.scrollIntoView({ block: "center", behavior: "smooth" });
+  };
 
   function deleteSel() { level[sel.t].splice(sel.i, 1); sel = null; sfx("error"); push(); buildProps(); }
   function dupSel() {
@@ -494,12 +590,20 @@
     oneways: "↑", fakes: "✕", invisible: "👻", disappear: "⏱", collapse: "▼",
     appearing: "✨", movers: "↔", ice: "❄", conveyors: "▶", ctrlZones: "⇄", jumpZones: "⇅",
   };
+  function armedText() {
+    if (!placing) return;
+    const n = placing.count || 0;
+    $("armed-text").textContent = placing.singleton
+      ? `Tap the canvas to move: ${SINGLETONS[placing.singleton].label}`
+      : `Placing: ${placing.label}${n ? ` — ${n} placed` : ""} · ✕ to finish`;
+  }
   function setPlacing(r) {
     placing = r;
-    document.querySelectorAll(".pal-grid button").forEach((b) => b.classList.toggle("placing", r && b.dataset.t === r.t));
+    if (r) r.count = 0;
+    document.querySelectorAll(".pal-grid button").forEach((b) => b.classList.toggle("placing", r && b.dataset.t === (r.singleton || r.t)));
     const ban = $("armed-banner");
-    if (r) { ban.style.display = ""; $("armed-text").textContent = `Placing: ${r.label} — tap the canvas`; }
-    else ban.style.display = "none";
+    if (r) { ban.style.display = ""; armedText(); } else ban.style.display = "none";
+    syncPropsVisibility();
   }
   $("armed-cancel").onclick = () => { sfx("click"); setPlacing(null); };
 
@@ -524,6 +628,21 @@
           if (!mqDesktop.matches) $("palette-sheet").style.display = "none";
         };
         grid.appendChild(b);
+      }
+      if (c === "Level") {                                   // spawn + door live here too — armed taps MOVE them
+        for (const key of ["spawn", "door"]) {
+          const b = document.createElement("button");
+          b.dataset.t = key; b.title = SINGLETONS[key].desc;
+          const img = document.createElement("img"); img.src = thumbURL(key);
+          const sp = document.createElement("span"); sp.textContent = SINGLETONS[key].label;
+          b.appendChild(img); b.appendChild(sp);
+          b.onclick = () => {
+            sfx("click");
+            setPlacing(placing && placing.singleton === key ? null : { singleton: key, label: SINGLETONS[key].label });
+            if (!mqDesktop.matches) $("palette-sheet").style.display = "none";
+          };
+          grid.appendChild(b);
+        }
       }
       sec.appendChild(grid);
       root.appendChild(sec);
@@ -556,12 +675,24 @@
     dir: ["Points", "which way the spikes face"],
     action: ["When touched", "spikes = it bites · flee = it vanishes"],
     deadly: ["Deadly", "it crushes"],
+    gap: ["Rest between slams", "seconds it waits armed before dropping"],
+    hold: ["Floor time", "seconds it stays down before rising"],
+    up: ["Raise speed", "pixels per second on the way back up"],
+    rest: ["Slams down to Y", "the Y it stops falling at (the floor it hits)"],
+    respawn: ["Comes back after", "seconds until it reappears (0 = gone forever)"],
+    pause: ["Pause at ends", "seconds it waits at each end of the path"],
+    rise: ["Spring speed", "how fast the spikes pop out (8 = snappy)"],
+    retract: ["Re-arm on leave", "spikes sink back when the player leaves the zone"],
   };
   const ENUMS = { dir: ["up", "down"], action: ["spikes", "flee"], mode: ["toggle", "hold"] };
-  const ENUM_LABELS = { toggle: "toggle", hold: "hold", spikes: "spikes — it bites", flee: "flee — it vanishes", up: "up", down: "down" };
+  const ENUM_LABELS = { toggle: "toggle", hold: "hold", spikes: "spikes — it bites", flee: "flee — it vanishes",
+                        up: "up", down: "down", left: "left ← off a right wall", right: "right → off a left wall" };
   const POS_KEYS = ["x", "y", "w", "h", "cx", "cy", "r", "ax", "ay"];
   const PATH_KEYS = ["x2", "y2", "bx", "by", "cx2", "cy2"];
   const LINK_KEYS = ["id", "targets", "needKey", "mode"];
+
+  let pushTimer = null;
+  function schedulePush() { clearTimeout(pushTimer); pushTimer = setTimeout(() => { pushTimer = null; push(); }, 600); }
 
   function fieldRow(key, val, setter) {
     const row = document.createElement("div"); row.className = "prow";
@@ -570,24 +701,74 @@
     lab.innerHTML = `<b>${name}</b>` + (help ? `<small>${help}</small>` : "");
     row.appendChild(lab);
     let inp;
-    if (ENUMS[key] && typeof val === "string") {
+    const enumList = (sel && sel.i != null && regOf(sel.t) && regOf(sel.t).enums && regOf(sel.t).enums[key]) || ENUMS[key];
+    if (enumList && typeof val === "string") {
       inp = document.createElement("select");
-      for (const v of ENUMS[key]) { const op = document.createElement("option"); op.value = v; op.textContent = ENUM_LABELS[v] || v; inp.appendChild(op); }
+      for (const v of enumList) { const op = document.createElement("option"); op.value = v; op.textContent = ENUM_LABELS[v] || v; inp.appendChild(op); }
       inp.value = val;
       inp.onchange = () => { setter(inp.value); push(); };
     } else if (typeof val === "boolean") {
       inp = document.createElement("input"); inp.type = "checkbox"; inp.checked = val;
       inp.onchange = () => { setter(inp.checked); push(); };
     } else if (typeof val === "number") {
+      const fine = ["delay", "on", "off", "phase", "mult", "gap", "hold", "pause", "respawn"].includes(key);
+      const inc = fine ? 0.05 : ["rise"].includes(key) ? 1 : 10;
       inp = document.createElement("input"); inp.type = "number"; inp.value = val;
-      inp.step = ["delay", "on", "off", "phase", "mult"].includes(key) ? 0.05 : 1;
+      inp.step = fine ? 0.05 : 1; inp.dataset.k = key;
+      inp.oninput = () => { const v = parseFloat(inp.value); if (!isNaN(v)) { setter(v); schedulePush(); } };  // live-apply while typing
       inp.onchange = () => { setter(parseFloat(inp.value) || 0); push(); };
+      const wrap = document.createElement("div"); wrap.className = "stepwrap";
+      const stepBtn = (txt, s) => {
+        const b = document.createElement("button"); b.type = "button"; b.className = "stepbtn"; b.textContent = txt;
+        b.onclick = () => { const v = Math.round(((parseFloat(inp.value) || 0) + s) * 100) / 100; inp.value = v; setter(v); schedulePush(); sfx("click"); };
+        return b;
+      };
+      wrap.append(stepBtn("−", -inc), inp, stepBtn("＋", inc));
+      row.appendChild(wrap);
+      return row;
     } else {
       inp = document.createElement("input"); inp.type = "text"; inp.value = val;
       inp.onchange = () => { setter(inp.value); push(); };
     }
     row.appendChild(inp);
     return row;
+  }
+
+  // touch-friendly fine positioning: ▲▼◀▶ pad, toggleable 10px ⇄ 1px step
+  let nudgeStep = 10;
+  function nudgeBy(dx, dy) {
+    const o = selObj(); if (!o) return;
+    if (sel.t === "saws") { o.cx += dx; o.cy += dy; if (o.cx2 != null) { o.cx2 += dx; o.cy2 += dy; } }
+    else if (sel.t === "portals") { o.ax += dx; o.ay += dy; }
+    else if (sel.t === "patrols") { o.x += dx; o.y += dy; o.minX += dx; o.maxX += dx; }
+    else { o.x += dx; o.y += dy; }
+    dirty = true; schedulePush(); syncPosInputs();
+  }
+  function syncPosInputs() {
+    const o = selObj(); if (!o) return;
+    document.querySelectorAll("#props-root input[data-k]").forEach((inp) => {
+      const k = inp.dataset.k;
+      if (k in o && typeof o[k] === "number" && document.activeElement !== inp) inp.value = o[k];
+    });
+  }
+  function nudgePad() {
+    const box = document.createElement("div"); box.className = "nudgewrap";
+    const lab = document.createElement("div"); lab.className = "plab";
+    lab.innerHTML = `<b>Nudge</b><small>tap the arrows for tiny moves — tap the middle to switch 10px ⇄ 1px</small>`;
+    box.appendChild(lab);
+    const pad = document.createElement("div"); pad.className = "nudgepad";
+    const arrow = (txt, fx, fy) => {
+      const b = document.createElement("button"); b.type = "button"; b.textContent = txt;
+      b.onclick = () => { sfx("click"); nudgeBy(fx * nudgeStep, fy * nudgeStep); };
+      return b;
+    };
+    const stepBtn = document.createElement("button"); stepBtn.type = "button"; stepBtn.className = "step";
+    stepBtn.textContent = nudgeStep + "px";
+    stepBtn.onclick = () => { nudgeStep = nudgeStep === 10 ? 1 : 10; stepBtn.textContent = nudgeStep + "px"; sfx("click"); };
+    const gap = () => document.createElement("i");
+    pad.append(gap(), arrow("▲", 0, -1), gap(), arrow("◀", -1, 0), stepBtn, arrow("▶", 1, 0), gap(), arrow("▼", 0, 1), gap());
+    box.appendChild(pad);
+    return box;
   }
 
   function group(title, hint) {
@@ -631,6 +812,7 @@
     if (posKeys.length) {
       const g = group(posKeys.some((k) => ["w", "h", "r"].includes(k)) ? "Position & size" : "Position");
       for (const k of posKeys) g.appendChild(fieldRow(k, o[k], (v) => { o[k] = v; dirty = true; }));
+      g.appendChild(nudgePad());
       root.appendChild(g);
     }
     if (behaveKeys.length) {
@@ -710,7 +892,9 @@
       $("props-sheet").style.display = "none";
       $("dock-right-empty").style.display = has ? "none" : "";
     } else {
-      $("props-sheet").style.display = has ? "" : "none";
+      // while armed, keep the canvas clear for rapid multi-placement
+      $("props-sheet").style.display = has && !placing ? "" : "none";
+      if (placing) sheetShift = 0;
     }
   }
 
@@ -830,13 +1014,13 @@
   // ================= help (with Show-me highlighting) =================
   const HELP_SECTIONS = [
     ["Placing objects", () => mqDesktop.matches ? "#dock-left" : "#btn-add",
-      "Pick an object from the palette, then tap the canvas where you want it. Hold Shift to place several. Press the tile again (or ✕ on the banner) to cancel."],
+      "Pick an object from the palette, then tap the canvas where you want it. It STAYS armed — keep tapping to place several. Hit ✕ on the banner (or Esc, or the tile again) to finish. Spawn and the Exit Door are in the Level section — arming them moves them."],
     ["Moving around", "#stage",
-      "Drag empty space to pan. Pinch or scroll to zoom. Your level can be up to 10 screens wide — set its size in the ☰ menu."],
+      "Drag empty space to pan (two fingers always pan). Pinch or scroll to zoom. Your level can be up to 10 screens wide — set its size in the ☰ menu."],
     ["The minimap", "#minimap",
-      "The little map shows your whole level and the box shows what's on screen. Tap anywhere on it to jump there."],
+      "The little map shows your whole level and the box shows what's on screen. Tap or DRAG on it to fly anywhere."],
     ["Editing objects", null,
-      "Tap any object to open its panel — every setting is explained there. Drag objects to move; drag the ■ corner to resize; dashed boxes are trigger zones; ◆ diamonds are path ends and portal exits. Tap the same spot again to cycle through overlapping objects."],
+      "Tap any object to open its panel — every setting is explained there. Drag objects to move; drag the big ■ handles to resize (saws grow by their edge handle); dashed boxes are trigger zones with their own corner handle; ◆ diamonds are path ends and portal exits. LONG-PRESS an object for quick duplicate/delete/nudge. Stacked objects? Tap again to cycle — a pill shows which one you're on. The nudge pad in the panel moves things 1px at a time."],
     ["X-ray vision", "#btn-xray",
       "Fake blocks (hatched), invisible platforms, pop-up spikes and hidden doors are invisible to players. X-ray ghosts them for YOU. Toggle it off to see the level exactly as players will."],
     ["Test & verify", "#btn-test",
@@ -946,5 +1130,7 @@
     place(t, x, y) { const r = regOf(t); const o = r.mk(x, y); level[t].push(o); sel = { t, i: level[t].length - 1 }; push(); buildProps(); ensureVisible(); return o; },
     select(t, i) { sel = { t, i }; buildProps(); },
     push, hash: levelHash,
+    arm: setPlacing, get placing() { return placing; }, nudge: nudgeBy, qab: qabShow, regOf,
+    get shift() { return sheetShift; },
   };
 })();

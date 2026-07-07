@@ -18,7 +18,7 @@ window.SFX = (() => {
 
   const persist = () => localStorage.setItem("ld_sound", JSON.stringify({ volume, muted }));
   const srcFor = n => "assets/sfx/" + (typeof picks[n] === "string" && /^[\w-]+\/[\w.-]+$/.test(picks[n])
-    ? "lib/" + picks[n] + ".ogg" : n + ".ogg") + "?v=9";
+    ? "lib/" + picks[n] + ".ogg" : n + ".ogg") + "?v=10";
 
   for (const n of NAMES) {
     bank[n] = { i: 0, pool: Array.from({ length: POLY }, () => {

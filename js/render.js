@@ -82,11 +82,22 @@ window.LDR = (() => {
     bctx.restore();
   }
 
-  // stepped-pyramid spikes (like the icon)
+  // stepped-pyramid spikes (like the icon); dir = which way the points face
   function spikeStrip(x, y, w, h, dir, color) {
     const X = bx(x), Y = by(y), W = Math.max(2, bx(x + w) - X), H = Math.max(2, by(y + h) - Y);
-    const n = Math.max(1, Math.round(W / 9)), tw = W / n;
     bctx.fillStyle = color || C.spike || C.brick;
+    if (dir === "left" || dir === "right") {
+      const n = Math.max(1, Math.round(H / 9)), th = H / n;   // teeth stack vertically, points sideways
+      for (let i = 0; i < n; i++) {
+        const cy0 = Y + i * th + th / 2;
+        for (let c2 = 0; c2 < W; c2++) {
+          const rh = Math.max(1, Math.round((th - 1) * (c2 + 1) / W));
+          bctx.fillRect(dir === "left" ? X + c2 : X + W - 1 - c2, Math.round(cy0 - rh / 2), 1, rh);
+        }
+      }
+      return;
+    }
+    const n = Math.max(1, Math.round(W / 9)), tw = W / n;
     for (let i = 0; i < n; i++) {
       const cx0 = X + i * tw + tw / 2;
       for (let r2 = 0; r2 < H; r2++) {
@@ -247,35 +258,35 @@ window.LDR = (() => {
       name: src.name, hint: src.hint, reverse: !!src.reverse, grav: 1,
       w: Math.max(VW, src.w || VW), h: Math.max(VH, src.h || VH),
       spawn: { ...src.spawn },
-      door: { ...src.door, w: 44, h: 64, hidden: !!src.door.hidden && !src.__doorShown },
+      door: { ...src.door, w: 44, h: 64, hidden: !!src.door.hidden },
       solids: (src.solids || []).map((r) => ({ ...r })),
       oneways: (src.oneways || []).map((r) => ({ ...r })),
       fakes: (src.fakes || []).map((r) => ({ ...r })),
       invisible: (src.invisible || []).map((r) => ({ ...r, seen: false })),
       ice: (src.ice || []).map((r) => ({ ...r, ice: true })),
       conveyors: (src.conveyors || []).map((r) => ({ ...r })),
-      disappear: (src.disappear || []).map((r) => ({ ...r, touched: false, t: 0, gone: false, alpha: 1 })),
+      disappear: (src.disappear || []).map((r) => ({ ...r, touched: false, t: 0, gone: false, alpha: 1, rt: 0 })),
       collapse: (src.collapse || []).map((r) => ({ ...r, touched: false, t: 0, falling: false, vy: 0 })),
-      appearing: (src.appearing || []).map((r) => ({ ...r, on: false })),
-      movers: (src.movers || []).map((r) => ({ ...r, t: 0, fwd: true, dx: 0, dy: 0, mover: true })),
+      appearing: (src.appearing || []).map((r) => ({ ...r, on: false, trig: false })),
+      movers: (src.movers || []).map((r) => ({ ...r, t: 0, fwd: true, dx: 0, dy: 0, wait: 0, mover: true })),
       gates: (src.gates || []).map((r) => ({ ...r, opened: false })),
       spikes: (src.spikes || []).map((r) => ({ ...r })),
       popspikes: (src.popspikes || []).map((r) => ({ ...r, y0: r.y, active: false, prog: 0 })),
       fallers: (src.fallers || []).map((r) => ({ ...r, y0: r.y, phase: "idle", vy: 0, timer: 0 })),
       saws: (src.saws || []).map((s) => ({ ...s, t: 0, fwd: true, x: s.cx, y: s.cy, angle: 0 })),
-      lasers: (src.lasers || []).map((l) => ({ ...l })),
+      lasers: (src.lasers || []).map((l) => ({ ...l, wasOn: false })),
       fires: (src.fires || []).map((f) => ({ ...f, h: 26 })),
       chasers: (src.chasers || []).map((c) => ({ ...c, active: false })),
-      patrols: (src.patrols || []).map((p) => ({ ...p, dir: 1, w: 24, h: 22 })),
+      patrols: (src.patrols || []).map((p) => ({ ...p, dir: 1, w: p.w ?? 24, h: p.h ?? 22 })),
       portals: (src.portals || []).map((p) => ({ ...p })),
       gravZones: (src.gravZones || []).map((z) => ({ ...z, armed: true })),
       ctrlZones: (src.ctrlZones || []).map((z) => ({ ...z, armed: true })),
       jumpZones: (src.jumpZones || []).map((z) => ({ ...z })),
       camZones: (src.camZones || []).map((z) => ({ ...z })),
-      buttons: (src.buttons || []).map((b) => ({ ...b, w: 44, pressed: false, was: false })),
+      buttons: (src.buttons || []).map((b) => ({ ...b, w: b.w ?? 44, pressed: false, was: false })),
       keys: (src.keys || []).map((k) => ({ ...k, got: false })),
       checkpoints: (src.checkpoints || []).map((c) => ({ ...c, hit: false })),
-      fakeExits: (src.fakeExits || []).map((f) => ({ ...f, w: 44, h: 64, triggered: !!src.__fakeDone, gone: !!src.__fakeDone && f.action === "flee" })),
+      fakeExits: (src.fakeExits || []).map((f) => ({ ...f, w: 44, h: 64, triggered: false, gone: false })),
       coins: (src.coins || []).map((c) => ({ ...c, got: false })),
       stars: (src.stars || []).map((s) => ({ ...s, got: false })),
     };
@@ -364,8 +375,9 @@ window.LDR = (() => {
     // hazards
     for (const s of L.spikes) spikeStrip(s.x, s.y, s.w, s.h, s.dir || "up");
     for (const s of L.popspikes) {
-      if (s.prog > 0.02) spikeStrip(s.x, s.y0 - s.h * s.prog, s.w, s.h * s.prog, "up");
-      else if (XRAY) { bctx.globalAlpha = 0.3; spikeStrip(s.x, s.y0 - s.h, s.w, s.h, "up"); bctx.globalAlpha = 1; }
+      const down = s.dir === "down";                          // grows out of the ceiling
+      if (s.prog > 0.02) spikeStrip(s.x, down ? s.y0 : s.y0 - s.h * s.prog, s.w, s.h * s.prog, down ? "down" : "up");
+      else if (XRAY) { bctx.globalAlpha = 0.3; spikeStrip(s.x, down ? s.y0 : s.y0 - s.h, s.w, s.h, down ? "down" : "up"); bctx.globalAlpha = 1; }
     }
     for (const f of L.fallers) if (f.phase !== "idle" || f.y > -60 || XRAY) {
       drawBrick(f, C.brick);

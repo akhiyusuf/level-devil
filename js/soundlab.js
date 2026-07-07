@@ -84,7 +84,7 @@
   let cur = null;
   function playRef(ref, ev) {
     if (cur) { cur.pause(); cur = null; }
-    const a = new Audio("assets/sfx/lib/" + ref + ".ogg?v=9");
+    const a = new Audio("assets/sfx/lib/" + ref + ".ogg?v=10");
     a.volume = Math.min(1, volume * (TRIM[ev] ?? 0.8));
     a.play().catch(() => {});
     cur = a;

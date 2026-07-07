@@ -1,7 +1,7 @@
 # brief — Level Devil "Play & Create" (pre-compact handoff)
 
 ## What this is
-Level Devil clone grown into a platform: pixel-art troll platformer + game shell + mobile-first WYSIWYG level editor with Geometry-Dash-style verify-then-share. Vanilla JS, no build, GitHub Pages off branch `claude/level-devil-clone-rnpfyi` → https://akhiyusuf.github.io/level-devil/ . Cache tags `?v=9` on all assets (bump on every JS/CSS/ogg change — user hit stale-cache before).
+Level Devil clone grown into a platform: pixel-art troll platformer + game shell + mobile-first WYSIWYG level editor with Geometry-Dash-style verify-then-share. Vanilla JS, no build, GitHub Pages off branch `claude/level-devil-clone-rnpfyi` → https://akhiyusuf.github.io/level-devil/ . Cache tags `?v=10` on all assets (bump on every JS/CSS/ogg change — user hit stale-cache before).
 
 ## Architecture
 - `js/render.js` — SHARED renderer + `buildRuntime(levelSrc)`. Game, editor canvas and palette thumbnails all draw with it. Camera-aware (`camX/camY`), draws into any-size canvas. KEY: terrain (solids+fakes+untriggered disappear/collapse) is outlined as ONE union silhouette via mask-halo (`terrainPass`) — per-rect outlines betrayed fake blocks (user caught it; pixel-verified fixed). `xray` opt ghosts trolls + hatches fakes (editor only). `drawThumb(ctx,type,theme,size)` renders palette tiles.
@@ -25,5 +25,11 @@ Level Devil clone grown into a platform: pixel-art troll platformer + game shell
 - UI must self-explain: descriptions, spotlight tours, show-me highlights.
 - Wants future: backend community (accounts, browse levels, ad revenue) — schema carries author/name/verified for it. Full editor-palette wishlist in README roadmap.
 
+## v10 — logic audit + full props + mobile-native editor (2026-07-07)
+- LOGIC FIXES (game.js/render.js): troll-reveal now session `attempt{fakeDone,doorShown}` (reset in startPlay/nextLevel/jumpTo/comp-again/win-R — NEVER stamped on LEVELS source; replay unspoiled); stars derived `starCount()=starsBanked+live` (die+regrab counts once, got cleared on bank); oneways work under flipped gravity (`vy*gd>=0` + underside branch); mover shove resolved vs statics + pinch=die; appearing blocks two-stage `trig` → never solidify inside player; laser SFX on off→on edge (`wasOn`, on-screen ±200 only); checkpoint snapshots {grav,reverse,keys,gates} and loadLevel restores.
+- NEW PROPS (all `??` defaults, old codes valid): fallers gap/hold/up/rest (exposed via mk); disappear `respawn` (rt timer, never respawns into player); movers `pause` (wait at ends); popspikes `rise`/`retract`/`dir:"down"` (ceiling, hazard from y0); spikes dir left/right (spikeStrip sideways teeth; collision stays full-rect); buttons `w`, patrols `w/h` (buildRuntime+rectOf `??`). FRIENDLY entries for all; per-type enums (REG .enums overrides global — spikes 4-dir, popspikes 2).
+- MOBILE-NATIVE EDITOR: stay-armed multi-place (banner counts, ✕/Esc/tile to finish; props sheet suppressed while armed); spawn+door in palette "Level" (armed tap MOVES); tap-cycle moved to pointerup + "n of m" pill (TAP_SLOP=8 screen px); LONG-PRESS(450ms, touch) → #qab duplicate/delete/nudge; 44px grab handles (grabTest 22/zoom) + NEW saw radius / fire width / zone corner-resize handles; nudge pad (10⇄1px) in props reusing nudgeBy (also keyboard); number steppers −/＋ + oninput live-apply + push() debounced 600ms (schedulePush); minimap drag-scrub (pointer capture, touch-action none); two-finger drag pans; setPointerCapture wrapped try/catch (synthetic pointers).
+- Tests: scratchpad fix1.mjs (logic), fix2.mjs (props, custom level), ed4.mjs (touch E2E, Pixel-7 context + dispatchEvent w/ clientX — offsetX is not an event-init key!), spikeshot.mjs (4-dir visual). __ed additions: arm/placing/nudge/qab/regOf/shift.
+
 ## State
-All committed+pushed (HEAD cb7b5eb). All 18 tasks completed. No known bugs. QA workflow findings all fixed or consciously skipped (letterboxing, thumbnail-perception nit).
+All committed+pushed. Tasks 1-25 completed. solve5 25/25, ed2, ed4, fix1, fix2 all green at v10. No known bugs.

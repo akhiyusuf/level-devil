@@ -65,7 +65,12 @@
   const saveProgress = () => localStorage.setItem("ld_progress", JSON.stringify(progress));
 
   // ---- state ----
-  let levelIdx = 0, deaths = 0, totalTime = 0, levelTime = 0, won = false, starsGot = 0;
+  let levelIdx = 0, deaths = 0, totalTime = 0, levelTime = 0, won = false;
+  let starsBanked = 0;                                     // stars from finished levels; current level counted live
+  const starCount = () => starsBanked + (L ? L.stars.filter((s) => s.got).length : 0);
+  // per-attempt troll reveals: persist across deaths, reset on fresh level entry (never stamped on source data)
+  let attempt = { fakeDone: false, doorShown: false };
+  const newAttempt = () => { attempt = { fakeDone: false, doorShown: false }; };
   let L = null, entering = null, checkpointPos = null;
   const keysHeld = new Set();
   const player = { x: 0, y: 0, w: 30, h: 34, vx: 0, vy: 0, onGround: false, alive: true, wasJump: false,
@@ -84,11 +89,20 @@
     const src = LEVELS[i];
     C = THEMES[src.theme] || THEMES.tan;
     L = LDR.buildRuntime(src);
+    if (attempt.doorShown) L.door.hidden = false;
+    if (attempt.fakeDone) for (const f of L.fakeExits) { f.triggered = true; if (f.action === "flee") f.gone = true; }
     const sp = checkpointPos || src.spawn;
     player.x = sp.x; player.y = sp.y;
     player.vx = player.vy = 0; player.onGround = false; player.alive = true;
     player.carrier = null; player.surf = { ice: false, belt: 0 }; player.portalCD = 0;
     keysHeld.clear();
+    if (checkpointPos && checkpointPos.keys) {           // restore checkpoint context
+      L.grav = checkpointPos.grav ?? L.grav;
+      L.reverse = checkpointPos.reverse ?? L.reverse;
+      for (const id of checkpointPos.keys) keysHeld.add(id);
+      for (const k of L.keys) if (keysHeld.has(k.id)) k.got = true;
+      for (const g of L.gates) if (checkpointPos.gates.includes(g.id)) g.opened = true;
+    }
     particles = [];
     respawnTimer = 0;
     entering = null;
@@ -111,7 +125,9 @@
   function nextLevel() {
     sfx("complete");
     markDone();
+    for (const s of L.stars) if (s.got) { starsBanked++; s.got = false; }   // bank once; got cleared so starCount stays exact
     checkpointPos = null;
+    newAttempt();
     if (CUSTOM) { completeCustom(); return; }
     if (levelIdx + 1 >= LEVELS.length) { won = true; return; }
     levelIdx++; loadLevel(levelIdx);
@@ -126,7 +142,7 @@
     const box = $("overlay-complete");
     if (box) {
       $("comp-title").textContent = SHARED ? "Level Clear!" : "Verified! ✓";
-      $("comp-stats").textContent = `${deaths} deaths · ${totalTime.toFixed(1)}s` + (starsGot ? ` · ★${starsGot}` : "");
+      $("comp-stats").textContent = `${deaths} deaths · ${totalTime.toFixed(1)}s` + (starCount() ? ` · ★${starCount()}` : "");
       $("comp-sub").textContent = SHARED ? "Beat the devil at someone else's game." : "This level is now shareable from the editor.";
       show("gamewrap", "overlay-complete");
     }
@@ -149,7 +165,7 @@
     burst(player.x + player.w / 2, player.y + player.h / 2 - 4, 26, [C.brickShade, C.brick, C.bg, C.player]);
   }
 
-  function solidRects() {
+  function solidRects(withMovers = true) {
     const out = L.solids.slice();
     for (const r of L.invisible) out.push(r);
     for (const r of L.ice) out.push(r);
@@ -157,7 +173,7 @@
     for (const d of L.disappear) if (!d.gone) out.push(d);
     for (const c of L.collapse) if (!c.falling) out.push(c);
     for (const a of L.appearing) if (a.on) out.push(a);
-    for (const m of L.movers) out.push(m);
+    if (withMovers) for (const m of L.movers) out.push(m);
     for (const g of L.gates) if (!g.opened) out.push(g);
     return out;
   }
@@ -237,16 +253,29 @@
     player.vy += GRAV * gd * dt;
     player.vy = Math.max(-MAXFALL, Math.min(player.vy, MAXFALL));
 
+    const statics = solidRects(false);
+    // shove player by a mover's delta, resolved against static geometry; pinched = crushed
+    const shove = (m, dx, dy) => {
+      player.x += dx; player.y += dy;
+      let bumped = false;
+      for (const r of statics) if (pOver(r)) {
+        bumped = true;
+        if (dx > 0) player.x = r.x - player.w; else if (dx < 0) player.x = r.x + r.w;
+        if (dy > 0) player.y = r.y - player.h; else if (dy < 0) player.y = r.y + r.h;
+      }
+      if (bumped && pOver(m, 8)) die();
+    };
     for (const m of L.movers) {
       const px = m.x, py = m.y;
+      if (m.wait > 0) { m.wait -= dt; m.dx = m.dy = 0; continue; }      // pausing at a path end
       const dxs = m.x2 - (m.ox ?? (m.ox = m.x)), dys = m.y2 - (m.oy ?? (m.oy = m.y));
       const len = Math.hypot(dxs, dys) || 1;
       m.t += (m.fwd ? 1 : -1) * (m.speed * dt) / len;
-      if (m.t >= 1) { m.t = 1; m.fwd = false; } else if (m.t <= 0) { m.t = 0; m.fwd = true; }
+      if (m.t >= 1) { m.t = 1; m.fwd = false; m.wait = m.pause ?? 0; }
+      else if (m.t <= 0) { m.t = 0; m.fwd = true; m.wait = m.pause ?? 0; }
       m.x = m.ox + dxs * m.t; m.y = m.oy + dys * m.t;
       m.dx = m.x - px; m.dy = m.y - py;
-      if (player.carrier === m) { player.x += m.dx; player.y += m.dy; }
-      else if (pOver(m)) { player.x += m.dx; player.y += m.dy; }
+      if (player.carrier === m || pOver(m)) shove(m, m.dx, m.dy);
     }
     player.carrier = null;
 
@@ -284,12 +313,14 @@
     }
     for (const r of solids) if (pOver(r, 8)) { die(); break; }   // crushed
 
-    if (gd > 0 && player.vy >= 0) {
+    if (player.vy * gd >= 0) {                            // falling in current gravity's "down"
       for (const r of L.oneways) {
-        const feetPrev = prevY + player.h, feetNow = player.y + player.h;
-        if (feetPrev <= r.y + 1 && feetNow >= r.y &&
-            player.x < r.x + r.w && player.x + player.w > r.x) {
-          player.y = r.y - player.h; player.vy = 0; player.onGround = true;
+        if (player.x >= r.x + r.w || player.x + player.w <= r.x) continue;
+        if (gd > 0) {
+          const feetPrev = prevY + player.h, feetNow = player.y + player.h;
+          if (feetPrev <= r.y + 1 && feetNow >= r.y) { player.y = r.y - player.h; player.vy = 0; player.onGround = true; }
+        } else {                                          // inverted: land head-first on the underside
+          if (prevY >= r.y + r.h - 1 && player.y <= r.y + r.h) { player.y = r.y + r.h; player.vy = 0; player.onGround = true; }
         }
       }
     }
@@ -327,7 +358,7 @@
       if (!f.triggered && player.onGround &&
           overlap(player.x + 4, player.y + 4, player.w - 8, player.h - 8, f.x + 6, f.y, f.w - 12, f.h)) {
         f.triggered = true;
-        LEVELS[levelIdx].__fakeDone = true; LEVELS[levelIdx].__doorShown = true;
+        attempt.fakeDone = attempt.doorShown = true;
         L.door.hidden = false;
         sfx("error");
         burst(f.x + f.w / 2, f.y + f.h / 2, 18, [C.brick, C.brickShade, C.doorDark]);
@@ -386,7 +417,8 @@
       if (!c.hit && overlap(player.x, player.y, player.w, player.h, c.x - 10, c.y - 60, 40, 60)) {
         c.hit = true;
         sfx("checkpoint");
-        if (!c.fake) checkpointPos = { x: c.x, y: c.y - player.h };
+        if (!c.fake) checkpointPos = { x: c.x, y: c.y - player.h, grav: L.grav, reverse: L.reverse,
+                                       keys: [...keysHeld], gates: L.gates.filter((g) => g.opened).map((g) => g.id) };
       }
     }
   }
@@ -400,7 +432,7 @@
     }
     for (const s of L.stars) {
       if (!s.got && overlap(player.x, player.y, player.w, player.h, s.x - 12, s.y - 12, 24, 24)) {
-        s.got = true; starsGot++; sfx("star");
+        s.got = true; sfx("star");
         burst(s.x, s.y, 14, [C.star, C.coin], 200);
       }
     }
@@ -416,7 +448,10 @@
     for (const d of L.disappear) {
       if (d.touched && !d.gone) {
         d.t += dt;
-        if (d.t >= d.delay) { d.alpha -= dt * 4; if (d.alpha <= 0) { d.alpha = 0; d.gone = true; } }
+        if (d.t >= d.delay) { d.alpha -= dt * 4; if (d.alpha <= 0) { d.alpha = 0; d.gone = true; d.rt = 0; } }
+      } else if (d.gone && (d.respawn ?? 0) > 0) {
+        d.rt += dt;
+        if (d.rt >= d.respawn && !pOver(d)) { d.touched = false; d.t = 0; d.gone = false; d.alpha = 1; }  // never respawn inside the player
       }
     }
     for (const c of L.collapse) {
@@ -425,11 +460,22 @@
         if (c.t >= c.delay) { c.falling = true; c.vy = Math.min(c.vy + GRAV * dt, MAXFALL); c.y += c.vy * dt; }
       }
     }
-    for (const a of L.appearing) if (!a.on && inZone(a.zone)) { a.on = true; sfx("appear"); burst(a.x + a.w / 2, a.y, 8, [C.brickShade], 120); }
+    for (const a of L.appearing) {
+      if (a.on) continue;
+      if (inZone(a.zone)) a.trig = true;
+      if (a.trig && !pOver(a)) { a.on = true; sfx("appear"); burst(a.x + a.w / 2, a.y, 8, [C.brickShade], 120); }  // never solidify inside the player
+    }
     for (const s of L.popspikes) {
-      if (!s.active && inZone(s.zone)) { s.active = true; sfx("pop"); }
-      if (s.active && s.prog < 1) s.prog = Math.min(1, s.prog + dt * 8);
-      s.y = s.y0 - s.h * s.prog;
+      if (!s.active && inZone(s.zone)) { if (s.prog <= 0) sfx("pop"); s.active = true; }
+      if (s.retract && s.active && !inZone(s.zone)) s.active = false;   // re-arms when the player leaves
+      const spd = s.rise ?? 8;
+      if (s.active) s.prog = Math.min(1, s.prog + dt * spd);
+      else if (s.retract) s.prog = Math.max(0, s.prog - dt * spd);
+    }
+    for (const l of L.lasers) {
+      const on = LDR.laserState(l, anim.time).active;
+      if (on && !l.wasOn && l.x < cam.x + VW + 200 && l.x + l.w > cam.x - 200) sfx("laser");
+      l.wasOn = on;
     }
     for (const f of L.fallers) {
       const restY = f.rest != null ? f.rest : 500 - f.h;
@@ -484,7 +530,8 @@
     for (const s of L.popspikes) {
       if (s.prog > 0.15) {
         const hh = s.h * s.prog;
-        if (overlap(player.x + pad, player.y + pad, player.w - 6, player.h - 6, s.x, s.y0 - hh, s.w, hh)) return true;
+        const ry = s.dir === "down" ? s.y0 : s.y0 - hh;      // down = grows out of the ceiling
+        if (overlap(player.x + pad, player.y + pad, player.w - 6, player.h - 6, s.x, ry, s.w, hh)) return true;
       }
     }
     for (const f of L.fallers) if (f.deadly && f.y > f.y0 + 4 &&
@@ -537,7 +584,7 @@
       else hudCoinsWrap.style.display = "none";
     }
     if (hudStarsWrap) {
-      if (starsGot > 0 || L.stars.length) { hudStarsWrap.style.display = ""; hudStars.textContent = starsGot; }
+      if (starCount() > 0 || L.stars.length) { hudStarsWrap.style.display = ""; hudStars.textContent = starCount(); }
       else hudStarsWrap.style.display = "none";
     }
   }
@@ -548,7 +595,7 @@
     ctx.font = "bold 54px system-ui, sans-serif";
     ctx.fillText("YOU BEAT THE DEVIL", VW / 2, 210);
     ctx.fillStyle = "#f6f1e6"; ctx.font = "22px system-ui, sans-serif";
-    ctx.fillText(`${deaths} deaths — ${totalTime.toFixed(1)}s${starsGot ? ` — ★${starsGot}` : ""}`, VW / 2, 262);
+    ctx.fillText(`${deaths} deaths — ${totalTime.toFixed(1)}s${starCount() ? ` — ★${starCount()}` : ""}`, VW / 2, 262);
     ctx.fillStyle = "rgba(246,241,230,0.65)"; ctx.font = "18px system-ui, sans-serif";
     ctx.fillText("Press R to play again · Esc for menu", VW / 2, 312);
   }
@@ -592,7 +639,8 @@
   // ---- shell actions ----
   function startPlay(i) {
     mode = "play"; paused = false; won = false;
-    levelIdx = i; deaths = 0; totalTime = 0; starsGot = 0; checkpointPos = null;
+    levelIdx = i; deaths = 0; totalTime = 0; starsBanked = 0; checkpointPos = null;
+    newAttempt();
     loadLevel(i);
     show("gamewrap");
     fit();
@@ -646,7 +694,7 @@
     on("btn-p-restart", () => { paused = false; resetLevel(); show("gamewrap"); });
     on("btn-p-levels", () => { mode = "menu"; paused = false; buildLevelGrid(); show("screen-levels"); });
     on("btn-p-quit", toMenu);
-    on("btn-comp-again", () => { won = false; deaths = 0; totalTime = 0; starsGot = 0; loadLevel(0); show("gamewrap"); });
+    on("btn-comp-again", () => { won = false; deaths = 0; totalTime = 0; starsBanked = 0; newAttempt(); loadLevel(0); show("gamewrap"); });
     on("btn-comp-menu", toMenu);
     // play-a-shared-code box on the title screen
     const go = $("btn-code-go");
@@ -681,7 +729,7 @@
   addEventListener("keydown", (e) => {
     if (mode !== "play" || !won || CUSTOM) return;
     const k = e.key.toLowerCase();
-    if (k === "r") { won = false; levelIdx = 0; deaths = 0; totalTime = 0; starsGot = 0; checkpointPos = null; loadLevel(0); }
+    if (k === "r") { won = false; levelIdx = 0; deaths = 0; totalTime = 0; starsBanked = 0; checkpointPos = null; newAttempt(); loadLevel(0); }
     if (k === "escape") { won = false; toMenu(); }
   });
 
@@ -695,7 +743,7 @@
     get cam() { return cam; },
     get entering() { return !!entering; },
     laserOn: (i) => LDR.laserState(L.lasers[i], anim.time).active,
-    jumpTo(i) { checkpointPos = null; won = false; levelIdx = i; if (mode !== "play") { startPlay(i); } else { loadLevel(i); } },
+    jumpTo(i) { checkpointPos = null; won = false; levelIdx = i; newAttempt(); starsBanked = 0; if (mode !== "play") { startPlay(i); } else { loadLevel(i); } },
   };
 
   // ---- boot ----

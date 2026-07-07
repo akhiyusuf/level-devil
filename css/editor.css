@@ -250,3 +250,43 @@ canvas#minimap {
 .tour-step { color: var(--muted); font-size: 12.5px; flex: 1; }
 .tour-nav button { background: var(--bg); color: var(--muted); border: 1px solid var(--line); border-radius: 9px; padding: 9px 14px; font-size: 13.5px; }
 .tour-nav button.primary { background: var(--accent); color: #fff; border: none; border-bottom: 3px solid #8a341a; font-weight: 800; }
+
+/* ============ mobile-native UX (v10): qab, nudge pad, steppers, touch targets ============ */
+canvas#minimap { touch-action: none; }
+.armed-banner button { width: 40px; height: 40px; font-size: 16px; }
+
+.qab {
+  position: absolute; z-index: 6; display: flex; gap: 6px;
+  background: rgba(14, 10, 7, 0.96); border: 1px solid var(--line); border-radius: 12px;
+  padding: 6px; box-shadow: 0 8px 26px rgba(0,0,0,0.55);
+}
+.qab button {
+  background: var(--panel2, #2e241a); color: var(--text); border: 1px solid var(--line);
+  border-radius: 9px; font-size: 13px; font-weight: 700; padding: 11px 12px; min-height: 44px;
+}
+.qab button.danger { color: #ff9d7a; border-color: #5a2e1e; }
+
+.stepwrap { display: flex; gap: 5px; align-items: center; flex: none; }
+.stepwrap input[type="number"] { width: 74px; }
+.stepbtn {
+  width: 34px; height: 36px; flex: none; background: var(--panel2, #2e241a); color: var(--text);
+  border: 1px solid var(--line); border-radius: 8px; font-size: 16px; font-weight: 800;
+}
+.stepbtn:active { background: var(--accent); }
+
+.nudgewrap { margin-top: 10px; }
+.nudgepad {
+  display: grid; grid-template-columns: repeat(3, 52px); gap: 5px; justify-content: start; margin-top: 8px;
+}
+.nudgepad button {
+  height: 44px; background: var(--panel2, #2e241a); color: var(--text);
+  border: 1px solid var(--line); border-radius: 9px; font-size: 15px; font-weight: 800;
+}
+.nudgepad button:active { background: var(--accent); }
+.nudgepad button.step { font-size: 12px; color: var(--good); }
+.nudgepad i { display: block; }
+
+.prow input[type="checkbox"] { width: 26px; height: 26px; }
+.chkline input { width: 24px; height: 24px; }
+.nudgewrap .plab b { display: block; margin-bottom: 2px; }
+.nudgewrap .plab small { display: block; color: var(--muted); }

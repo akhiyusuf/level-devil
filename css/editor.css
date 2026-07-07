@@ -1,0 +1,52 @@
+:root {
+  --bg: #1a1410; --panel: #241c15; --line: #3a2e23;
+  --text: #f0e8dc; --muted: #a08d78; --accent: #c9542f; --good: #cf9a4a;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; background: var(--bg); color: var(--text); font-family: system-ui, sans-serif; }
+body { display: flex; flex-direction: column; gap: 8px; padding: 8px; overflow: hidden; }
+
+.topbar {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 8px 12px;
+}
+.topbar .tag { font-weight: 800; letter-spacing: 1px; color: var(--accent); white-space: nowrap; }
+.topbar .tag em { color: var(--muted); font-style: italic; font-weight: 400; }
+.topbar .spacer { flex: 1; }
+.topbar input[type="text"], .topbar select {
+  background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 7px; padding: 6px 9px; font-size: 13px;
+}
+#lv-name { width: 140px; } #lv-hint { width: 230px; }
+button {
+  background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 7px;
+  padding: 6px 11px; font-size: 13px; cursor: pointer;
+}
+button:hover { border-color: var(--muted); }
+button.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 700; }
+button.danger { color: #ff6b5e; border-color: #6b3028; }
+.chk { font-size: 12.5px; color: var(--muted); display: inline-flex; gap: 5px; align-items: center; white-space: nowrap; }
+
+.main { flex: 1; display: flex; gap: 8px; min-height: 0; }
+.stage { flex: 1; display: flex; align-items: center; justify-content: center; min-width: 0; }
+canvas#ed { background: #d8c6a0; border: 1px solid var(--line); border-radius: 10px; max-width: 100%; max-height: 100%; cursor: crosshair; }
+
+.props {
+  width: 250px; background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+  padding: 12px; overflow-y: auto; font-size: 13px;
+}
+.props h3 { font-size: 14px; margin-bottom: 10px; color: var(--good); }
+.props .row { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
+.props .row label { flex: 1; color: var(--muted); font-size: 12px; }
+.props .row input[type="number"], .props .row input[type="text"], .props .row select {
+  width: 110px; background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: 4px 7px; font-size: 12.5px;
+}
+.props-actions { display: flex; gap: 8px; margin-top: 10px; }
+.props .tip { margin-top: 14px; color: var(--muted); font-size: 11.5px; line-height: 1.5; }
+
+.toolbar { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 8px 12px; }
+.cats { display: flex; gap: 6px; margin-bottom: 8px; flex-wrap: wrap; }
+.cats button { padding: 4px 12px; font-size: 12.5px; border-radius: 999px; }
+.cats button.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+.palette { display: flex; gap: 6px; flex-wrap: wrap; min-height: 34px; }
+.palette button { font-size: 12.5px; padding: 5px 10px; }
+.palette button.placing { background: var(--good); border-color: var(--good); color: #1a1410; font-weight: 700; }

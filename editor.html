@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Level Devil — Editor</title>
+  <link rel="stylesheet" href="css/editor.css?v=1" />
+</head>
+<body>
+  <div class="topbar">
+    <span class="tag">LEVEL DEVIL <em>editor</em></span>
+    <input id="lv-name" type="text" placeholder="Level name" />
+    <input id="lv-hint" type="text" placeholder="Hint text (shown in-game)" />
+    <select id="lv-theme">
+      <option value="tan">Theme: Tan</option>
+      <option value="yellow">Theme: Yellow</option>
+      <option value="dark">Theme: Dark</option>
+    </select>
+    <label class="chk"><input id="lv-reverse" type="checkbox" /> Reversed controls</label>
+    <span class="spacer"></span>
+    <button id="btn-undo" title="Ctrl+Z">↩ Undo</button>
+    <button id="btn-redo" title="Ctrl+Y">↪ Redo</button>
+    <label class="chk"><input id="chk-snap" type="checkbox" checked /> Snap</label>
+    <button id="btn-clear">Clear</button>
+    <button id="btn-import">Import</button>
+    <button id="btn-export">Export</button>
+    <button id="btn-test" class="primary">▶ Test Play</button>
+  </div>
+
+  <div class="main">
+    <div class="stage"><canvas id="ed" width="960" height="540"></canvas></div>
+    <div class="props" id="props">
+      <h3 id="props-title">Nothing selected</h3>
+      <div id="props-body"></div>
+      <div class="props-actions" id="props-actions" style="display:none">
+        <button id="btn-dup">Duplicate</button>
+        <button id="btn-del" class="danger">Delete</button>
+      </div>
+      <p class="tip">Click a palette item, then click the canvas to place it.<br/>
+      Drag objects to move. Del = delete, Ctrl+D = duplicate, Ctrl+Z/Y = undo/redo.<br/>
+      Dashed box = trigger zone · dotted line = path/partner (drag the ◆).</p>
+    </div>
+  </div>
+
+  <div class="toolbar">
+    <div class="cats" id="cats"></div>
+    <div class="palette" id="palette"></div>
+  </div>
+
+  <script src="js/levels.js?v=5"></script>
+  <script src="js/editor.js?v=1"></script>
+</body>
+</html>

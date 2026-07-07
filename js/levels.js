@@ -90,11 +90,11 @@ const LEVELS = [
     hint: "Look up. Or don't.",
     spawn: { x: 40, y: onGround() },
     door: { x: 890, y: doorY() },
-    solids: [{ x: 0, y: GROUND, w: 960, h: 40 }],
-    fallers: [
-      { x: 300, y: -70, w: 70, h: 70, deadly: true, zone: { x: 190, y: 0, w: 120, h: 540 } },
-      { x: 520, y: -70, w: 70, h: 70, deadly: true, zone: { x: 410, y: 0, w: 120, h: 540 } },
-      { x: 720, y: -70, w: 70, h: 70, deadly: true, zone: { x: 610, y: 0, w: 120, h: 540 } },
+    solids: [{ x: 0, y: GROUND, w: 960, h: 40 }, { x: 0, y: 0, w: 960, h: 20 }],
+    fallers: [ // hang visibly from the ceiling, then slam down when neared
+      { x: 300, y: 20, w: 70, h: 70, deadly: true, zone: { x: 190, y: 0, w: 120, h: 540 } },
+      { x: 520, y: 20, w: 70, h: 70, deadly: true, zone: { x: 410, y: 0, w: 120, h: 540 } },
+      { x: 720, y: 20, w: 70, h: 70, deadly: true, zone: { x: 610, y: 0, w: 120, h: 540 } },
     ],
   },
 
@@ -122,8 +122,8 @@ const LEVELS = [
     name: "Cold Feet",
     hint: "Corner it.",
     spawn: { x: 40, y: onGround() },
-    door: { x: 300, y: doorY(), runaway: true, wall: 880, speed: 300, trigger: 170 },
-    solids: [{ x: 0, y: GROUND, w: 960, h: 40 }, { x: 936, y: 0, w: 24, h: 540 }],
+    door: { x: 300, y: doorY(), runaway: true, wall: 900, speed: 300, trigger: 170 },
+    solids: [{ x: 0, y: GROUND, w: 960, h: 40 }],
   },
 
   // 8 — Wrong Way. Controls reversed, with a gap to punish panic.
@@ -160,12 +160,11 @@ const LEVELS = [
     name: "Finale",
     hint: "You know the tricks now. Prove it.",
     spawn: { x: 30, y: onGround() },
-    door: { x: 900, y: doorY(), runaway: true, wall: 916, speed: 260, trigger: 150 },
+    door: { x: 866, y: doorY(), runaway: true, wall: 924, speed: 260, trigger: 150 },
     solids: [
       { x: 0,   y: GROUND, w: 160, h: 40 },
       { x: 460, y: GROUND, w: 120, h: 40 },
       { x: 860, y: GROUND, w: 100, h: 40 },
-      { x: 936, y: 0, w: 24, h: 540 },
     ],
     fakes: [{ x: 160, y: GROUND, w: 80, h: 40 }],           // false first step
     disappear: [

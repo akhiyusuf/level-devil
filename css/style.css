@@ -1,11 +1,11 @@
 :root {
-  --bg: #0e0e13;
-  --panel: #14141b;
-  --line: #23232e;
-  --text: #e9e9f0;
-  --muted: #8b8b9c;
-  --accent: #ff4d5e;
-  --good: #4dd2a0;
+  --bg: #1a1410;
+  --panel: #241c15;
+  --line: #3a2e23;
+  --text: #f0e8dc;
+  --muted: #a08d78;
+  --accent: #c9542f;
+  --good: #cf9a4a;
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -54,7 +54,7 @@ body {
 }
 
 canvas {
-  background: #f4f1e8;
+  background: #d8c6a0;
   border: 1px solid var(--line);
   border-radius: 14px;
   box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5);

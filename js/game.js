@@ -100,11 +100,13 @@
     player.alive = false;
     deaths++;
     respawnTimer = 0.45;
-    // burst of particles
-    for (let n = 0; n < 22; n++) {
-      const a = (Math.PI * 2 * n) / 22 + Math.random();
-      const s = 120 + Math.random() * 260;
-      particles.push({ x: player.x + player.w / 2, y: player.y + player.h / 2, vx: Math.cos(a) * s, vy: Math.sin(a) * s - 120, life: 0.6, r: 3 + Math.random() * 3 });
+    // burst of particles (mixed shades -> reads against the terracotta)
+    const bx = player.x + player.w / 2, by = player.y + player.h / 2 - 4;
+    const cols = [C.brickShade, C.brick, "#e8dcc0", "#c9542f", C.player];
+    for (let n = 0; n < 26; n++) {
+      const a = (Math.PI * 2 * n) / 26 + Math.random() * 0.6;
+      const s = 150 + Math.random() * 320;
+      particles.push({ x: bx, y: by, vx: Math.cos(a) * s, vy: Math.sin(a) * s - 170, life: 0.55 + Math.random() * 0.25, r: 3 + Math.random() * 4, color: cols[(Math.random() * cols.length) | 0] });
     }
   }
 
@@ -324,7 +326,7 @@
 
     // exit: pale-gray tombstone arch (draw behind player)
     const d = L.door;
-    archTop(d.x - 2, d.y - 2, d.w + 4, d.h + 4, (d.w + 4) / 2); ctx.fillStyle = C.doorEdge; ctx.fill();
+    archTop(d.x - 2, d.y - 2, d.w + 4, d.h + 2, (d.w + 4) / 2); ctx.fillStyle = C.doorEdge; ctx.fill();
     archTop(d.x, d.y, d.w, d.h, d.w / 2); ctx.fillStyle = C.door; ctx.fill();
     ctx.strokeStyle = C.doorEdge; ctx.lineWidth = 2;
     archTop(d.x + 5, d.y + 5, d.w - 10, d.h - 10, (d.w - 10) / 2); ctx.stroke(); // inner gravestone outline
@@ -362,16 +364,18 @@
     // particles
     for (const p of particles) {
       ctx.globalAlpha = Math.max(0, p.life / 0.6);
-      ctx.fillStyle = C.particle;
+      ctx.fillStyle = p.color || C.particle;
       ctx.fillRect(p.x - p.r / 2, p.y - p.r / 2, p.r, p.r);
     }
     ctx.globalAlpha = 1;
 
-    // hint text (first ~4s of a level)
-    if (L.hint && totalTime >= 0) {
-      ctx.fillStyle = C.hint;
-      ctx.font = "16px system-ui, sans-serif"; ctx.textAlign = "center";
-      ctx.fillText(L.hint, VW / 2, 40);
+    // hint text with a soft backing pill (stays legible over any object)
+    if (L.hint) {
+      ctx.font = "16px system-ui, sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "alphabetic";
+      const tw = ctx.measureText(L.hint).width;
+      ctx.fillStyle = "rgba(216,198,160,0.72)";     // tan pill
+      roundRect(VW / 2 - tw / 2 - 14, 24, tw + 28, 26, 13); ctx.fill();
+      ctx.fillStyle = C.hint; ctx.fillText(L.hint, VW / 2, 42);
     }
 
     if (won) drawWin();
@@ -431,8 +435,9 @@
     else if (!grounded) { if (pl.vy < -60) { sx = 0.85; sy = 1.15; } else if (pl.vy > 240) { sx = 0.93; sy = 1.08; } }
     else if (!moving) { const b = Math.sin(anim.time * 3) * 0.03; sx = 1 - b; sy = 1 + b; }
 
+    const GS = 1.15;                    // draw ~15% bigger than the hitbox -> more presence
     ctx.save();
-    ctx.translate(cx, feetY); ctx.scale(anim.facing * sx, sy); ctx.translate(-cx, -feetY); // flip toward facing
+    ctx.translate(cx, feetY); ctx.scale(anim.facing * sx * GS, sy * GS); ctx.translate(-cx, -feetY); // flip + scale toward facing
 
     const hipY = feetY - 12, shoulderY = pl.y + 12, headY = pl.y + 6, headR = 7;
     const st = anim.stride;
@@ -440,20 +445,20 @@
     // legs (two, opposite phase). foot swings fwd/back + lifts mid-stride
     const foot = (ph) => {
       let fx, fy;
-      if (grounded && moving) { fx = cx + Math.sin(ph) * 7; fy = feetY - Math.max(0, Math.cos(ph)) * 6; }
-      else if (!grounded) { const s = Math.sin(ph) > 0 ? 1 : -1; if (pl.vy < -60) { fx = cx + s * 3; fy = feetY - 7; } else { fx = cx + s * 5; fy = feetY + 2; } }
+      if (grounded && moving) { fx = cx + Math.sin(ph) * 8; fy = feetY - Math.max(0, Math.cos(ph)) * 7; }
+      else if (!grounded) { const s = Math.sin(ph) > 0 ? 1 : -1; if (pl.vy < -60) { fx = cx + s * 4; fy = feetY - 9; } else { fx = cx + s * 8; fy = feetY + 3; } } // tuck rising / sprawl falling
       else { fx = cx + (Math.sin(ph) > 0 ? 5 : -5); fy = feetY; }
-      limb(cx, hipY, fx, fy, 6);
+      limb(cx, hipY, fx, fy, 7);
     };
     foot(st); foot(st + Math.PI);
 
     // arms (two, opposite phase to legs)
     const arm = (ph) => {
       let hx, hy;
-      if (grounded && moving) { hx = cx - Math.sin(ph) * 6; hy = shoulderY + 9 - Math.max(0, -Math.cos(ph)) * 3; }
-      else if (!grounded) { const s = Math.sin(ph) > 0 ? 1 : -1; if (pl.vy < -60) { hx = cx + s * 8; hy = shoulderY - 4; } else { hx = cx + s * 10; hy = shoulderY + 5; } }
+      if (grounded && moving) { hx = cx - Math.sin(ph) * 7; hy = shoulderY + 9 - Math.max(0, -Math.cos(ph)) * 4; }
+      else if (!grounded) { const s = Math.sin(ph) > 0 ? 1 : -1; if (pl.vy < -60) { hx = cx + s * 10; hy = shoulderY - 7; } else { hx = cx + s * 13; hy = shoulderY + 7; } }
       else { hx = cx + (Math.sin(ph) > 0 ? 7 : -7); hy = shoulderY + 10; }
-      limb(cx, shoulderY + 2, hx, hy, 5);
+      limb(cx, shoulderY + 2, hx, hy, 6);
     };
     arm(st); arm(st + Math.PI);
 

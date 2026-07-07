@@ -1,76 +1,76 @@
-// Level Devil clone — editor v2. True WYSIWYG (renders with the game's renderer, paused),
-// mobile-first (touch drag / pinch zoom / bottom-sheet properties), palette thumbnails,
-// camera zones + big levels, guided tour, verify-then-share.
+// Level Devil clone — editor v3. Mobile-first (FAB -> palette sheet, props sheet),
+// desktop gets docked panels. WYSIWYG via the game renderer; explanatory properties;
+// spotlight tour; verify-then-share.
 (() => {
   "use strict";
 
   const S = 3, SNAP = 10;
   const sfx = (n) => { if (window.SFX) SFX.play(n); };
   const $ = (id) => document.getElementById(id);
+  const mqDesktop = matchMedia("(min-width: 980px)");
 
   // ================= object registry =================
-  // desc doubles as tooltip, info strip and help text. troll tips included.
   const REG = [
     { t: "solids", cat: "Terrain", label: "Ground", mk: (x, y) => ({ x, y, w: 160, h: 40 }),
       desc: "Solid block. The honest one. Build floors, walls and ledges with it." },
     { t: "oneways", cat: "Terrain", label: "One-Way", mk: (x, y) => ({ x, y, w: 120, h: 14 }),
       desc: "Jump up THROUGH it, land on top. Can't fall back through." },
     { t: "fakes", cat: "Terrain", label: "Fake Block", mk: (x, y) => ({ x, y, w: 120, h: 40 }),
-      desc: "TROLL — looks exactly like ground, but nothing is there. Players fall straight through." },
+      desc: "TROLL — looks exactly like ground in-game, but nothing is there. The hatching is only visible to you." },
     { t: "invisible", cat: "Terrain", label: "Invisible", mk: (x, y) => ({ x, y, w: 120, h: 16 }),
-      desc: "TROLL — solid platform that can't be seen until touched. The reverse of a fake block." },
+      desc: "TROLL — solid platform that players can't see until they touch it. The reverse of a Fake Block." },
     { t: "ice", cat: "Terrain", label: "Ice", mk: (x, y) => ({ x, y, w: 160, h: 40 }),
       desc: "Slippery floor. Players keep sliding after they stop pressing. Put a pit after it." },
     { t: "conveyors", cat: "Terrain", label: "Conveyor", mk: (x, y) => ({ x, y, w: 200, h: 40, belt: 140 }),
-      desc: "Moving belt floor. Positive speed pushes right, negative pushes left. Fight the current." },
+      desc: "Moving belt floor. Positive push = right, negative = left. Make them fight the current." },
     { t: "disappear", cat: "Terrain", label: "Vanishing", mk: (x, y) => ({ x, y, w: 90, h: 22, delay: 0.25 }),
-      desc: "TROLL — fades away moments after being stood on. 'delay' = seconds of mercy." },
+      desc: "TROLL — fades away moments after being stood on. Keep 'em moving." },
     { t: "collapse", cat: "Terrain", label: "Crumbling", mk: (x, y) => ({ x, y, w: 110, h: 22, delay: 0.18 }),
       desc: "TROLL — drops out of the world shortly after a foot touches it." },
     { t: "appearing", cat: "Terrain", label: "Appearing", zone: 1, mk: (x, y) => ({ x, y, w: 90, h: 16, zone: { x: x - 140, y: y - 60, w: 120, h: 140 } }),
-      desc: "Hidden until the player enters its trigger zone, then becomes solid. Reward for the brave." },
+      desc: "Hidden until the player enters its trigger zone, then becomes solid. A reward for the brave." },
     { t: "movers", cat: "Terrain", label: "Moving Platform", partner: ["x2", "y2"], mk: (x, y) => ({ x, y, w: 90, h: 16, x2: x + 180, y2: y, speed: 120 }),
-      desc: "Rides back and forth between its two points and carries the player. Drag the ◆ to set the far end." },
+      desc: "Rides back and forth between two points and carries the player. Drag the ◆ to set the far end." },
     { t: "gates", cat: "Terrain", label: "Gate", mk: (x, y) => ({ id: "g" + (Date.now() % 10000), x, y, w: 24, h: 128 }),
-      desc: "A wall that can open. Link a Pressure Plate to its id, or set needKey to a Key's id." },
+      desc: "A wall that can open. Link a Pressure Plate to it, or set a Key to unlock it." },
 
     { t: "spikes", cat: "Hazards", label: "Spikes", enums: { dir: ["up", "down"] }, mk: (x, y) => ({ x, y, w: 120, h: 14, dir: "up" }),
       desc: "The classic. Touch = death. Point them up from floors or down from ceilings." },
     { t: "popspikes", cat: "Hazards", label: "Pop-up Spikes", zone: 1, mk: (x, y) => ({ x, y, w: 60, h: 40, dir: "up", zone: { x: x - 110, y: y - 120, w: 110, h: 160 } }),
-      desc: "TROLL — hidden in the floor until the trigger zone is entered, then springs up. Place the zone where they'll walk." },
+      desc: "TROLL — hidden in the floor until the trigger zone is entered, then springs up. Put the zone where they'll walk." },
     { t: "fallers", cat: "Hazards", label: "Crusher", zone: 1, mk: (x, y) => ({ x, y, w: 80, h: 80, deadly: true, zone: { x: x - 110, y: 0, w: 110, h: 540 } }),
-      desc: "Spiked slab that slams down when the zone is entered, then keeps cycling forever. Time it or die." },
+      desc: "Spiked slab that slams down when its zone is entered, then keeps cycling forever. Time it or die." },
     { t: "saws", cat: "Hazards", label: "Saw Blade", partner: ["cx2", "cy2"], mk: (x, y) => ({ cx: x, cy: y, r: 26, cx2: x, cy2: y - 110, speed: 110 }),
       desc: "Spinning blade, deadly to touch. Drag the ◆ to give it a patrol path (same spot = stationary)." },
     { t: "lasers", cat: "Hazards", label: "Laser", mk: (x, y) => ({ x, y, w: 8, h: 300, on: 0.7, off: 1.1, phase: 0 }),
-      desc: "Beam that cycles on/off ('on'/'off' seconds, 'phase' offsets the rhythm). Set on=99 for always-on. It blinks before firing." },
+      desc: "Beam that cycles on/off. It blinks a warning before firing. Set On time to 99 for always-on." },
     { t: "fires", cat: "Hazards", label: "Fire", mk: (x, y) => ({ x, y, w: 70 }),
-      desc: "A strip of flames on the floor. Jump it. Sits 26px tall above its y." },
+      desc: "A strip of flames on the floor. Jump it." },
     { t: "chasers", cat: "Hazards", label: "Chaser", zone: 1, mk: (x, y) => ({ x, y, w: 34, h: 48, speed: 165, zone: { x: x + 100, y: y - 100, w: 140, h: 200 } }),
-      desc: "TROLL — spiked block that wakes when the zone is entered and slides toward the player forever. They can jump over it." },
+      desc: "TROLL — spiked block that wakes when its zone is entered and slides toward the player forever. Jumpable." },
     { t: "patrols", cat: "Hazards", label: "Patrol", mk: (x, y) => ({ x, y, minX: x - 80, maxX: x + 120, speed: 100 }),
-      desc: "Little enemy that marches between minX and maxX. Deadly on touch — hop over it." },
+      desc: "Little enemy that marches between two points. Deadly on touch — hop over it." },
 
     { t: "gravZones", cat: "Traps", label: "Gravity Flip", mk: (x, y) => ({ x, y, w: 60, h: 140 }),
       desc: "Walking into this flips gravity — the player falls UP and walks on ceilings. Add a second one to flip back." },
     { t: "ctrlZones", cat: "Traps", label: "Reverse Controls", mk: (x, y) => ({ x, y, w: 80, h: 140 }),
       desc: "TROLL — invisible in-game! Crossing it swaps left and right. Pure evil." },
     { t: "jumpZones", cat: "Traps", label: "Jump Modifier", mk: (x, y) => ({ x, y, w: 160, h: 180, mult: 0.65, visible: true }),
-      desc: "Inside this area jumps are multiplied by 'mult' (0.65 = weak knees, 1.5 = moon boots). visible=false hides it. Troll." },
+      desc: "Inside this area jump strength is multiplied. Weak knees or moon boots — your call." },
     { t: "portals", cat: "Traps", label: "Portal Pair", partner: ["bx", "by"], mk: (x, y) => ({ ax: x, ay: y, bx: x + 240, by: y, w: 34, h: 64, oneway: false }),
-      desc: "Step in A, pop out B (drag the ◆). oneway=true stops the return trip. Troll idea: a portal right before the door that sends them back to spawn." },
+      desc: "Step in the entrance, pop out at the ◆ exit. Troll idea: a portal right before the door that sends them back to spawn." },
     { t: "fakeExits", cat: "Traps", label: "Fake Exit", enums: { action: ["spikes", "flee"] }, mk: (x, y) => ({ x, y, action: "spikes" }),
-      desc: "TROLL — looks IDENTICAL to the real door. 'spikes' = it bites; 'flee' = it vanishes. Either way the real door is revealed (tip: set the real door hidden)." },
+      desc: "TROLL — looks IDENTICAL to the real door. Either it bites, or it vanishes. Triggering it reveals the real door (tip: set the real door to hidden)." },
 
     { t: "buttons", cat: "Interactive", label: "Pressure Plate", enums: { mode: ["toggle", "hold"] }, mk: (x, y) => ({ x, y, mode: "toggle", targets: [] }),
-      desc: "Stand on it to trigger the Gates listed in 'targets' (comma-separated ids). toggle = stays; hold = only while stood on." },
+      desc: "Stand on it to open/close Gates. Tick which gates it controls in the panel." },
     { t: "keys", cat: "Interactive", label: "Key", mk: (x, y) => ({ x, y, id: "k1" }),
-      desc: "Collect to permanently open every Gate whose needKey matches this id." },
+      desc: "Collect to permanently open every Gate set to need this key." },
     { t: "checkpoints", cat: "Interactive", label: "Checkpoint", mk: (x, y) => ({ x, y, fake: false }),
-      desc: "Respawn point once touched. fake=true raises its flag but saves NOTHING. The cruelest checkbox in this editor." },
+      desc: "Respawn point once touched. The 'fake' checkbox makes it lie — flag goes up, nothing is saved." },
 
     { t: "coins", cat: "Collect", label: "Coin", mk: (x, y) => ({ x, y }),
-      desc: "Optional shiny. Use them to bait players toward traps. That's what the devil would do." },
+      desc: "Optional shiny. Use them to bait players toward traps — that's what the devil would do." },
     { t: "stars", cat: "Collect", label: "Star", mk: (x, y) => ({ x, y }),
       desc: "A rare collectible for the boldest route. One per level feels right." },
 
@@ -79,10 +79,9 @@
   ];
   const CATS = [...new Set(REG.map((r) => r.cat))];
   const regOf = (t) => REG.find((r) => r.t === t);
-
-  const SINGLETON_DESC = {
-    spawn: "Where the player appears. The camera starts here too — everything else can wait off-screen.",
-    door: "The exit. runaway=true makes it flee toward 'wall' when approached. hidden=true keeps it invisible until a Fake Exit is triggered.",
+  const SINGLETONS = {
+    spawn: { label: "Spawn Point", desc: "Where the player appears. The camera starts here — everything else can wait off-screen." },
+    door: { label: "Exit Door", desc: "The goal. It can run away from the player, or start hidden until a Fake Exit is triggered." },
   };
 
   function rectOf(t, o) {
@@ -141,7 +140,7 @@
     level = Object.assign(blank(), JSON.parse(json));
     localStorage.setItem("ld_editor_autosave", levelJSON());
     sel = null; dirty = true;
-    syncDrawer(); syncSheet(); syncShareBtn(); sizeWorldBuf();
+    syncDrawer(); buildProps(); syncShareBtn(); sizeWorldBuf();
   }
   const undo = () => { if (undoPos > 0) { undoPos--; restoreTo(undoStack[undoPos]); } };
   const redo = () => { if (undoPos < undoStack.length - 1) { undoPos++; restoreTo(undoStack[undoPos]); } };
@@ -160,13 +159,8 @@
     worldBuf.height = Math.ceil(level.h / S);
     dirty = true;
   }
-
-  function sizeCanvas() {
-    cv.width = stage.clientWidth;
-    cv.height = stage.clientHeight;
-    clampView();
-  }
-  addEventListener("resize", sizeCanvas);
+  function sizeCanvas() { cv.width = stage.clientWidth; cv.height = stage.clientHeight; clampView(); }
+  addEventListener("resize", () => { sizeCanvas(); if (tourAt >= 0) positionTour(); });
 
   const minZoom = () => Math.min(cv.width / level.w, cv.height / level.h) * 0.9;
   function clampView() {
@@ -174,113 +168,64 @@
     const vw = cv.width / view.zoom, vh = cv.height / view.zoom;
     view.x = vw >= level.w ? (level.w - vw) / 2 : Math.max(0, Math.min(level.w - vw, view.x));
     view.y = vh >= level.h ? (level.h - vh) / 2 : Math.max(0, Math.min(level.h - vh, view.y));
+    $("zoom-pill").textContent = Math.round(view.zoom * 100) + "%";
   }
-  const s2w = (mx, my) => ({ x: view.x + mx / view.zoom, y: view.y + my / view.zoom });
+  let sheetShift = 0; // slides the world up while the mobile props sheet covers the bottom
+  const s2w = (mx, my) => ({ x: view.x + mx / view.zoom, y: view.y + (my + sheetShift) / view.zoom });
   const w2sX = (x) => (x - view.x) * view.zoom;
-  const w2sY = (y) => (y - view.y) * view.zoom;
+  const w2sY = (y) => (y - view.y) * view.zoom - sheetShift;
 
   // ================= selection =================
-  let placing = null;      // REG entry armed for placement
-  let sel = null;          // {t, i} | {t:'spawn'} | {t:'door'}
+  let placing = null;
+  let sel = null;
   const selObj = () => !sel ? null : sel.t === "spawn" ? level.spawn : sel.t === "door" ? level.door : level[sel.t][sel.i];
   const snap = (v) => Math.round(v / SNAP) * SNAP;
+
+  // make the selected object visible in the part of the canvas not covered by the mobile sheet:
+  // pan where possible, and slide the render up (sheetShift) where the clamp won't let us pan
+  function ensureVisible() {
+    const o = selObj();
+    if (!o) { sheetShift = 0; return; }
+    if (mqDesktop.matches) { sheetShift = 0; return; }
+    const rc = sel.i != null ? rectOf(sel.t, o) : { x: o.x, y: o.y, w: 44, h: 64 };
+    const cx0 = rc.x + rc.w / 2, cy0 = rc.y + rc.h / 2;
+    const usableH = cv.height * 0.30;   // the props sheet covers roughly the lower 60% on phones
+    const vw = cv.width / view.zoom;
+    if (cx0 < view.x + vw * 0.08 || cx0 > view.x + vw * 0.92) {
+      view.x = cx0 - vw / 2;
+      clampView();
+    }
+    sheetShift = 0;
+    const sy = (cy0 - view.y) * view.zoom;
+    if (sy > usableH * 0.85) sheetShift = Math.min(sy - usableH * 0.6, cv.height * 0.5);
+  }
 
   // ================= rendering =================
   function redrawWorld() {
     const rt = LDR.buildRuntime(level);
-    // editor previews trap states so nothing is invisible to the creator
     LDR.drawWorld(wbctx, rt, THEMES[level.theme] || THEMES.tan, { time: 0.85, camX: 0, camY: 0, xray });
-    // spawn ghost drawn with the real character sprite
     LDR.drawSpriteAt("idle0", level.spawn.x, level.spawn.y, 34, false, false, 0.95);
     dirty = false;
-    drawMinimap();
   }
-
   function drawMinimap() {
-    const mw = 148, mh = Math.max(24, Math.round(mw * level.h / level.w));
-    mini.width = mw; mini.height = mh;
+    const mw = mini.clientWidth || 104;
+    const mh = Math.max(20, Math.round(mw * level.h / level.w));
+    if (mini.width !== mw || mini.height !== mh) { mini.width = mw; mini.height = mh; }
     mctx.imageSmoothingEnabled = false;
     mctx.drawImage(worldBuf, 0, 0, mw, mh);
     mctx.strokeStyle = "#00d0ff"; mctx.lineWidth = 1;
     const vw = cv.width / view.zoom, vh = cv.height / view.zoom;
     mctx.strokeRect(view.x / level.w * mw, view.y / level.h * mh, Math.min(1, vw / level.w) * mw, Math.min(1, vh / level.h) * mh);
   }
-
   function frame() {
     if (dirty) redrawWorld();
     ctx.imageSmoothingEnabled = view.zoom < 1.2;
     ctx.fillStyle = "#0e0a07";
     ctx.fillRect(0, 0, cv.width, cv.height);
-    // world
-    const sx = view.x / S, sy = view.y / S, sw = cv.width / view.zoom / S, sh = cv.height / view.zoom / S;
-    ctx.drawImage(worldBuf, sx, sy, sw, sh, 0, 0, cv.width, cv.height);
+    ctx.drawImage(worldBuf, view.x / S, view.y / S, cv.width / view.zoom / S, cv.height / view.zoom / S, 0, -sheetShift, cv.width, cv.height);
     drawOverlays();
     drawMinimap();
     requestAnimationFrame(frame);
-  }
-
-  function drawOverlays() {
-    // world border
-    ctx.strokeStyle = "rgba(255,255,255,0.25)"; ctx.lineWidth = 2;
-    ctx.strokeRect(w2sX(0), w2sY(0), level.w * view.zoom, level.h * view.zoom);
-
-    // camera zones (editor-only visual)
-    for (let i = 0; i < level.camZones.length; i++) {
-      const z = level.camZones[i];
-      ctx.setLineDash([8, 6]);
-      ctx.strokeStyle = "#f0a01e"; ctx.lineWidth = 2;
-      ctx.strokeRect(w2sX(z.x), w2sY(z.y), z.w * view.zoom, z.h * view.zoom);
-      ctx.setLineDash([]);
-      chip(w2sX(z.x) + 4, w2sY(z.y) + 4, "📷 camera zone", "#f0a01e");
-    }
-
-    // spawn / door chips
-    chip(w2sX(level.spawn.x), w2sY(level.spawn.y) - 20, "SPAWN", "#7ec8ff");
-    if (level.door.hidden) chip(w2sX(level.door.x), w2sY(level.door.y) - 20, "DOOR (hidden)", "#e8d87a");
-
-    const o = selObj();
-    if (o) {
-      const rc = sel.t === "spawn" ? { x: o.x, y: o.y, w: 30, h: 34 }
-        : sel.t === "door" ? { x: o.x, y: o.y, w: 44, h: 64 }
-        : rectOf(sel.t, o);
-      ctx.strokeStyle = "#00d0ff"; ctx.lineWidth = 2;
-      ctx.strokeRect(w2sX(rc.x) - 2, w2sY(rc.y) - 2, rc.w * view.zoom + 4, rc.h * view.zoom + 4);
-      chip(w2sX(rc.x), w2sY(rc.y) - 20, sel.i != null ? regOf(sel.t).label : sel.t.toUpperCase(), "#00d0ff");
-      // resize handle
-      if (sel.i != null && o.w != null && o.h != null && sel.t !== "portals") {
-        ctx.fillStyle = "#00d0ff";
-        ctx.fillRect(w2sX(rc.x + rc.w) - 6, w2sY(rc.y + rc.h) - 6, 12, 12);
-      }
-      // zone
-      if (o.zone) {
-        ctx.setLineDash([6, 5]); ctx.strokeStyle = "#00d0ff";
-        ctx.strokeRect(w2sX(o.zone.x), w2sY(o.zone.y), o.zone.w * view.zoom, o.zone.h * view.zoom);
-        ctx.setLineDash([]);
-        chip(w2sX(o.zone.x) + 3, w2sY(o.zone.y) + 3, "trigger zone — drag me", "#00a0c8");
-      }
-      // partner
-      if (sel.i != null) {
-        const pb = partnerRect(sel.t, o);
-        if (pb) {
-          ctx.setLineDash([3, 5]); ctx.strokeStyle = "#00d0ff";
-          ctx.beginPath();
-          ctx.moveTo(w2sX(rc.x + rc.w / 2), w2sY(rc.y + rc.h / 2));
-          ctx.lineTo(w2sX(pb.x + pb.w / 2), w2sY(pb.y + pb.h / 2));
-          ctx.stroke(); ctx.setLineDash([]);
-          const cxp = w2sX(pb.x + pb.w / 2), cyp = w2sY(pb.y + pb.h / 2);
-          ctx.fillStyle = "#00d0ff";
-          ctx.beginPath();
-          ctx.moveTo(cxp, cyp - 9); ctx.lineTo(cxp + 9, cyp); ctx.lineTo(cxp, cyp + 9); ctx.lineTo(cxp - 9, cyp);
-          ctx.fill();
-        }
-        if (sel.t === "patrols") {
-          ctx.setLineDash([2, 4]); ctx.strokeStyle = "#00d0ff";
-          ctx.beginPath();
-          ctx.moveTo(w2sX(o.minX), w2sY(o.y + 22)); ctx.lineTo(w2sX(o.maxX), w2sY(o.y + 22));
-          ctx.stroke(); ctx.setLineDash([]);
-        }
-      }
-    }
   }
 
   function chip(x, y, txt, color) {
@@ -290,6 +235,61 @@
     ctx.beginPath(); ctx.roundRect(x, y, w, 17, 6); ctx.fill();
     ctx.fillStyle = color; ctx.textAlign = "left"; ctx.textBaseline = "middle";
     ctx.fillText(txt, x + 6, y + 9);
+  }
+
+  function drawOverlays() {
+    ctx.strokeStyle = "rgba(255,255,255,0.25)"; ctx.lineWidth = 2;
+    ctx.strokeRect(w2sX(0), w2sY(0), level.w * view.zoom, level.h * view.zoom);
+
+    for (const z of level.camZones) {
+      ctx.setLineDash([8, 6]); ctx.strokeStyle = "#f0a01e"; ctx.lineWidth = 2;
+      ctx.strokeRect(w2sX(z.x), w2sY(z.y), z.w * view.zoom, z.h * view.zoom);
+      ctx.setLineDash([]);
+      chip(w2sX(z.x) + 4, w2sY(z.y) + 4, "📷 camera zone", "#f0a01e");
+    }
+    chip(w2sX(level.spawn.x), w2sY(level.spawn.y) - 20, "SPAWN", "#7ec8ff");
+    if (level.door.hidden) chip(w2sX(level.door.x), w2sY(level.door.y) - 20, "DOOR (hidden)", "#e8d87a");
+
+    const o = selObj();
+    if (!o) return;
+    const rc = sel.t === "spawn" ? { x: o.x, y: o.y, w: 30, h: 34 }
+      : sel.t === "door" ? { x: o.x, y: o.y, w: 44, h: 64 }
+      : rectOf(sel.t, o);
+    ctx.strokeStyle = "#00d0ff"; ctx.lineWidth = 2;
+    ctx.strokeRect(w2sX(rc.x) - 2, w2sY(rc.y) - 2, rc.w * view.zoom + 4, rc.h * view.zoom + 4);
+    chip(w2sX(rc.x), w2sY(rc.y) - 20, sel.i != null ? regOf(sel.t).label : SINGLETONS[sel.t].label, "#00d0ff");
+    if (sel.i != null && o.w != null && o.h != null && sel.t !== "portals") {
+      ctx.fillStyle = "#00d0ff";
+      ctx.fillRect(w2sX(rc.x + rc.w) - 6, w2sY(rc.y + rc.h) - 6, 12, 12);
+    }
+    if (o.zone) {
+      ctx.setLineDash([6, 5]); ctx.strokeStyle = "#00d0ff";
+      ctx.strokeRect(w2sX(o.zone.x), w2sY(o.zone.y), o.zone.w * view.zoom, o.zone.h * view.zoom);
+      ctx.setLineDash([]);
+      chip(w2sX(o.zone.x) + 3, w2sY(o.zone.y) + 3, "trigger zone — drag me", "#00a0c8");
+    }
+    if (sel.i != null) {
+      const pb = partnerRect(sel.t, o);
+      if (pb) {
+        ctx.setLineDash([3, 5]); ctx.strokeStyle = "#00d0ff";
+        ctx.beginPath();
+        ctx.moveTo(w2sX(rc.x + rc.w / 2), w2sY(rc.y + rc.h / 2));
+        ctx.lineTo(w2sX(pb.x + pb.w / 2), w2sY(pb.y + pb.h / 2));
+        ctx.stroke(); ctx.setLineDash([]);
+        const cxp = w2sX(pb.x + pb.w / 2), cyp = w2sY(pb.y + pb.h / 2);
+        ctx.fillStyle = "#00d0ff";
+        ctx.beginPath();
+        ctx.moveTo(cxp, cyp - 9); ctx.lineTo(cxp + 9, cyp); ctx.lineTo(cxp, cyp + 9); ctx.lineTo(cxp - 9, cyp);
+        ctx.fill();
+        chip(cxp + 12, cyp - 8, sel.t === "portals" ? "exit — drag me" : "path end — drag me", "#00a0c8");
+      }
+      if (sel.t === "patrols") {
+        ctx.setLineDash([2, 4]); ctx.strokeStyle = "#00d0ff";
+        ctx.beginPath();
+        ctx.moveTo(w2sX(o.minX), w2sY(o.y + 22)); ctx.lineTo(w2sX(o.maxX), w2sY(o.y + 22));
+        ctx.stroke(); ctx.setLineDash([]);
+      }
+    }
   }
 
   // ================= hit testing =================
@@ -322,16 +322,14 @@
 
   // ================= pointer interactions =================
   const pointers = new Map();
-  let drag = null;          // {mode, lx, ly, moved} modes: move|zone|partner|resize|pan
-  let pinch = null;         // {d0, z0, cx, cy}
-  let lastTapHits = [], lastTapIdx = 0;
+  let drag = null, pinch = null, lastTapHits = [], lastTapIdx = 0;
 
   cv.addEventListener("pointerdown", (e) => {
     cv.setPointerCapture(e.pointerId);
     pointers.set(e.pointerId, { x: e.offsetX, y: e.offsetY });
     if (pointers.size === 2) {
       const [a, b] = [...pointers.values()];
-      pinch = { d0: Math.hypot(a.x - b.x, a.y - b.y), z0: view.zoom, cx: (a.x + b.x) / 2, cy: (a.y + b.y) / 2 };
+      pinch = { d0: Math.hypot(a.x - b.x, a.y - b.y), z0: view.zoom };
       drag = null;
       return;
     }
@@ -342,7 +340,7 @@
       sel = { t: placing.t, i: level[placing.t].length - 1 };
       if (!e.shiftKey) setPlacing(null);
       sfx("appear");
-      push(); syncSheet();
+      push(); buildProps(); ensureVisible();
       return;
     }
     const grab = grabTest(wx, wy);
@@ -355,7 +353,8 @@
       sel = hits[lastTapIdx];
       drag = { mode: "move", lx: wx, ly: wy, moved: false };
       sfx("click");
-      syncSheet();
+      buildProps();
+      if (!mqDesktop.matches) ensureVisible();
     } else {
       drag = { mode: "pan", lx: e.offsetX, ly: e.offsetY, moved: false };
     }
@@ -367,11 +366,11 @@
     if (pinch && pointers.size === 2) {
       const [a, b] = [...pointers.values()];
       const d = Math.hypot(a.x - b.x, a.y - b.y);
-      const cx = (a.x + b.x) / 2, cy = (a.y + b.y) / 2;
-      const before = s2w(cx, cy);
+      const cx0 = (a.x + b.x) / 2, cy0 = (a.y + b.y) / 2;
+      const before = s2w(cx0, cy0);
       view.zoom = pinch.z0 * (d / Math.max(20, pinch.d0));
       clampView();
-      const after = s2w(cx, cy);
+      const after = s2w(cx0, cy0);
       view.x += before.x - after.x; view.y += before.y - after.y;
       clampView();
       return;
@@ -414,8 +413,8 @@
     pointers.delete(e.pointerId);
     if (pointers.size < 2) pinch = null;
     if (drag) {
-      if (drag.mode === "pan" && !drag.moved) { sel = null; syncSheet(); }
-      else if (drag.moved && drag.mode !== "pan") { push(); syncSheet(); }
+      if (drag.mode === "pan" && !drag.moved) { sel = null; sheetShift = 0; buildProps(); }
+      else if (drag.moved && drag.mode !== "pan") { push(); buildProps(); }
       drag = null;
     }
   };
@@ -434,16 +433,14 @@
 
   mini.addEventListener("pointerdown", (e) => {
     const r = mini.getBoundingClientRect();
-    const fx = (e.clientX - r.left) / r.width, fy = (e.clientY - r.top) / r.height;
-    view.x = fx * level.w - cv.width / view.zoom / 2;
-    view.y = fy * level.h - cv.height / view.zoom / 2;
+    view.x = (e.clientX - r.left) / r.width * level.w - cv.width / view.zoom / 2;
+    view.y = (e.clientY - r.top) / r.height * level.h - cv.height / view.zoom / 2;
     clampView();
   });
 
-  // keyboard (desktop comfort)
   addEventListener("keydown", (e) => {
     if (["INPUT", "SELECT", "TEXTAREA"].includes(document.activeElement.tagName)) return;
-    if (e.key === "Escape") { setPlacing(null); sel = null; syncSheet(); }
+    if (e.key === "Escape") { setPlacing(null); sel = null; buildProps(); }
     if ((e.key === "Delete" || e.key === "Backspace") && sel && sel.i != null) deleteSel();
     if (e.ctrlKey && e.key.toLowerCase() === "d" && sel && sel.i != null) { e.preventDefault(); dupSel(); }
     if (e.ctrlKey && !e.shiftKey && e.key.toLowerCase() === "z") { e.preventDefault(); undo(); }
@@ -457,117 +454,286 @@
       if (sel.t === "saws") { o.cx += dx; o.cy += dy; if (o.cx2 != null) { o.cx2 += dx; o.cy2 += dy; } }
       else if (sel.t === "portals") { o.ax += dx; o.ay += dy; }
       else { o.x += dx; o.y += dy; }
-      push(); dirty = true; syncSheet();
+      push(); dirty = true; buildProps();
     }
   });
 
-  function deleteSel() { level[sel.t].splice(sel.i, 1); sel = null; sfx("error"); push(); syncSheet(); }
+  function deleteSel() { level[sel.t].splice(sel.i, 1); sel = null; sfx("error"); push(); buildProps(); }
   function dupSel() {
     const c = JSON.parse(JSON.stringify(level[sel.t][sel.i]));
     if (c.x != null) c.x += 30; if (c.ax != null) { c.ax += 30; c.bx += 30; } if (c.cx != null) { c.cx += 30; if (c.cx2 != null) c.cx2 += 30; }
     level[sel.t].push(c);
     sel = { t: sel.t, i: level[sel.t].length - 1 };
-    sfx("appear"); push(); syncSheet();
+    sfx("appear"); push(); buildProps();
   }
 
-  // ================= palette =================
-  let activeCat = CATS[0];
-  function setPlacing(r) {
-    placing = r;
-    [...$("palette").children].forEach((b) => b.classList.toggle("placing", r && b.dataset.t === r.t));
-    const ban = $("armed-banner");
-    if (r) { ban.style.display = ""; ban.textContent = `Placing: ${r.label} — tap the canvas (Shift = place many)`; }
-    else ban.style.display = "none";
-    $("info-strip").textContent = r ? r.desc : "Tap an object, then tap the canvas to place it. Drag objects to move them.";
-  }
-  function buildToolbar() {
-    const catsEl = $("cats"), palEl = $("palette");
-    catsEl.innerHTML = ""; palEl.innerHTML = "";
-    for (const c of CATS) {
-      const b = document.createElement("button");
-      b.textContent = c; b.classList.toggle("active", c === activeCat);
-      b.onclick = () => { sfx("click"); activeCat = c; buildToolbar(); };
-      catsEl.appendChild(b);
-    }
-    for (const r of REG.filter((r) => r.cat === activeCat)) {
-      const b = document.createElement("button");
-      b.dataset.t = r.t; b.title = r.desc;
-      const img = document.createElement("img");
+  // ================= palette (sections; lives in dock or sheet) =================
+  const thumbCache = {};
+  function thumbURL(t) {
+    const k = t + "|" + level.theme;
+    if (!thumbCache[k]) {
       const tc = document.createElement("canvas"); tc.width = tc.height = 44;
-      if (r.t === "camZones") { // editor-only visual: draw a dashed box icon
+      if (t === "camZones") {
         const g = tc.getContext("2d");
         g.strokeStyle = "#f0a01e"; g.setLineDash([4, 3]); g.lineWidth = 2;
         g.strokeRect(6, 9, 32, 26);
-        g.fillStyle = "#f0a01e"; g.font = "13px system-ui"; g.textAlign = "center"; g.fillText("📷", 22, 27);
+        g.font = "13px system-ui"; g.textAlign = "center"; g.fillText("📷", 22, 27);
+      } else if (t === "spawn") {
+        LDR.drawThumb(tc.getContext("2d"), "spawnPt", level.theme, 44);
+      } else if (t === "door") {
+        LDR.drawThumb(tc.getContext("2d"), "doorObj", level.theme, 44);
       } else {
-        LDR.drawThumb(tc.getContext("2d"), r.t, level.theme, 44);
+        LDR.drawThumb(tc.getContext("2d"), t, level.theme, 44);
       }
-      img.src = tc.toDataURL();
-      const sp = document.createElement("span"); sp.textContent = r.label;
-      b.appendChild(img); b.appendChild(sp);
-      b.onclick = () => { sfx("click"); setPlacing(placing === r ? null : r); };
-      palEl.appendChild(b);
+      thumbCache[k] = tc.toDataURL();
     }
+    return thumbCache[k];
   }
 
-  // ================= properties sheet =================
-  const ENUMS = { dir: ["up", "down"], action: ["spikes", "flee"], mode: ["toggle", "hold"] };
-  const FIELD_HELP = {
-    delay: "seconds before it gives way", belt: "push speed (+right / −left)", speed: "movement speed px/s",
-    on: "seconds the beam is ON (99 = always)", off: "seconds OFF", phase: "cycle offset in seconds",
-    mult: "jump strength multiplier", targets: "gate ids, comma-separated", needKey: "key id that opens this",
-    id: "name used by plates/keys", oneway: "no return trip", fake: "raises flag, saves nothing (evil)",
-    runaway: "door flees when approached", wall: "x it stops fleeing at", trigger: "distance that spooks it",
-    hidden: "invisible until a Fake Exit is triggered", visible: "players can see this zone", minX: "left patrol limit", maxX: "right patrol limit",
+  const BADGES = {
+    oneways: "↑", fakes: "✕", invisible: "👻", disappear: "⏱", collapse: "▼",
+    appearing: "✨", movers: "↔", ice: "❄", conveyors: "▶", ctrlZones: "⇄", jumpZones: "⇅",
   };
-  function syncSheet() {
-    const sheet = $("sheet"), body = $("sheet-body");
-    const o = selObj();
-    if (!o) { sheet.style.display = "none"; return; }
-    sheet.style.display = "";
-    $("sheet-title").textContent = sel.i != null ? regOf(sel.t).label : (sel.t === "spawn" ? "Spawn Point" : "Exit Door");
-    $("sheet-desc").textContent = sel.i != null ? regOf(sel.t).desc : SINGLETON_DESC[sel.t];
-    $("props-actions"); // noop safeguard
-    document.querySelector(".sheet-actions").style.visibility = sel.i != null ? "visible" : "hidden";
-    body.innerHTML = "";
-    const addRow = (key, val, setter) => {
-      const row = document.createElement("div"); row.className = "row";
-      const lab = document.createElement("label");
-      lab.textContent = key + (FIELD_HELP[key] ? ` — ${FIELD_HELP[key]}` : "");
-      row.appendChild(lab);
-      let inp;
-      if (ENUMS[key] && typeof val === "string") {
-        inp = document.createElement("select");
-        for (const v of ENUMS[key]) { const op = document.createElement("option"); op.value = op.textContent = v; inp.appendChild(op); }
-        inp.value = val;
-        inp.onchange = () => { setter(inp.value); push(); };
-      } else if (typeof val === "boolean") {
-        inp = document.createElement("input"); inp.type = "checkbox"; inp.checked = val;
-        inp.onchange = () => { setter(inp.checked); push(); };
-      } else if (typeof val === "number") {
-        inp = document.createElement("input"); inp.type = "number"; inp.value = val;
-        inp.step = ["delay", "on", "off", "phase", "mult"].includes(key) ? 0.05 : 1;
-        inp.onchange = () => { setter(parseFloat(inp.value) || 0); push(); };
-      } else if (Array.isArray(val)) {
-        inp = document.createElement("input"); inp.type = "text"; inp.value = val.join(",");
-        inp.onchange = () => { setter(inp.value.split(",").map((s) => s.trim()).filter(Boolean)); push(); };
-      } else {
-        inp = document.createElement("input"); inp.type = "text"; inp.value = val;
-        inp.onchange = () => { setter(inp.value); push(); };
-      }
-      row.appendChild(inp); body.appendChild(row);
-    };
-    for (const k of Object.keys(o)) {
-      if (k === "zone") continue;
-      addRow(k, o[k], (v) => { o[k] = v; dirty = true; });
-    }
-    if (o.zone) for (const zk of ["x", "y", "w", "h"]) addRow("zone." + zk, o.zone[zk], (v) => { o.zone[zk] = v; dirty = true; });
+  function setPlacing(r) {
+    placing = r;
+    document.querySelectorAll(".pal-grid button").forEach((b) => b.classList.toggle("placing", r && b.dataset.t === r.t));
+    const ban = $("armed-banner");
+    if (r) { ban.style.display = ""; $("armed-text").textContent = `Placing: ${r.label} — tap the canvas`; }
+    else ban.style.display = "none";
   }
-  $("btn-del").onclick = () => sel && sel.i != null && deleteSel();
-  $("btn-dup").onclick = () => sel && sel.i != null && dupSel();
-  $("btn-sheet-close").onclick = () => { sel = null; syncSheet(); };
+  $("armed-cancel").onclick = () => { sfx("click"); setPlacing(null); };
 
-  // ================= drawer (level settings) =================
+  function buildPalette() {
+    const root = $("palette-root");
+    root.innerHTML = "";
+    for (const c of CATS) {
+      const sec = document.createElement("div"); sec.className = "pal-sec";
+      const h = document.createElement("h4"); h.textContent = c; sec.appendChild(h);
+      const grid = document.createElement("div"); grid.className = "pal-grid";
+      for (const r of REG.filter((r) => r.cat === c)) {
+        const b = document.createElement("button");
+        b.dataset.t = r.t; b.title = r.desc;
+        const img = document.createElement("img"); img.src = thumbURL(r.t);
+        const sp = document.createElement("span"); sp.textContent = r.label;
+        b.appendChild(img); b.appendChild(sp);
+        const badge = BADGES[r.t];   // tells the lookalike terrain tiles apart at a glance
+        if (badge) { const bd = document.createElement("i"); bd.className = "tile-badge"; bd.textContent = badge; b.appendChild(bd); }
+        b.onclick = () => {
+          sfx("click");
+          setPlacing(placing === r ? null : r);
+          if (!mqDesktop.matches) $("palette-sheet").style.display = "none";
+        };
+        grid.appendChild(b);
+      }
+      sec.appendChild(grid);
+      root.appendChild(sec);
+    }
+  }
+
+  // ================= explanatory properties =================
+  const FRIENDLY = {
+    x: ["X position", "pixels from the left edge"], y: ["Y position", "pixels from the top"],
+    w: ["Width", "in pixels"], h: ["Height", "in pixels"],
+    mode: ["Plate mode", "toggle = a press flips it · hold = open only while stood on"],
+    cx: ["Center X", ""], cy: ["Center Y", ""], r: ["Blade radius", ""],
+    ax: ["Entrance X", ""], ay: ["Entrance Y", ""],
+    speed: ["Speed", "pixels per second"],
+    delay: ["Delay", "seconds of mercy before it gives way"],
+    belt: ["Belt push", "+ pushes right · − pushes left"],
+    on: ["On time", "seconds the beam fires (99 = always on)"],
+    off: ["Off time", "seconds of safety between blasts"],
+    phase: ["Rhythm offset", "shifts this laser's timing vs others (seconds)"],
+    mult: ["Jump power", "1 = normal · 0.65 = weak knees · 1.5 = moon boots"],
+    oneway: ["One-way trip", "can't come back through the exit"],
+    fake: ["Fake (evil)", "flag goes up, but NOTHING is saved"],
+    runaway: ["Runs away", "the door flees when the player gets close"],
+    wall: ["Gives up at X", "where the fleeing door finally stops"],
+    trigger: ["Scare distance", "how close the player gets before it runs"],
+    hidden: ["Start hidden", "revealed when a Fake Exit is triggered"],
+    visible: ["Visible in game", "untick to hide this zone from players (troll)"],
+    minX: ["Patrol left edge", ""], maxX: ["Patrol right edge", ""],
+    id: ["ID name", "plates and gates use this name to find it"],
+    dir: ["Points", "which way the spikes face"],
+    action: ["When touched", "spikes = it bites · flee = it vanishes"],
+    deadly: ["Deadly", "it crushes"],
+  };
+  const ENUMS = { dir: ["up", "down"], action: ["spikes", "flee"], mode: ["toggle", "hold"] };
+  const ENUM_LABELS = { toggle: "toggle", hold: "hold", spikes: "spikes — it bites", flee: "flee — it vanishes", up: "up", down: "down" };
+  const POS_KEYS = ["x", "y", "w", "h", "cx", "cy", "r", "ax", "ay"];
+  const PATH_KEYS = ["x2", "y2", "bx", "by", "cx2", "cy2"];
+  const LINK_KEYS = ["id", "targets", "needKey", "mode"];
+
+  function fieldRow(key, val, setter) {
+    const row = document.createElement("div"); row.className = "prow";
+    const lab = document.createElement("div"); lab.className = "plab";
+    const [name, help] = FRIENDLY[key] || [key, ""];
+    lab.innerHTML = `<b>${name}</b>` + (help ? `<small>${help}</small>` : "");
+    row.appendChild(lab);
+    let inp;
+    if (ENUMS[key] && typeof val === "string") {
+      inp = document.createElement("select");
+      for (const v of ENUMS[key]) { const op = document.createElement("option"); op.value = v; op.textContent = ENUM_LABELS[v] || v; inp.appendChild(op); }
+      inp.value = val;
+      inp.onchange = () => { setter(inp.value); push(); };
+    } else if (typeof val === "boolean") {
+      inp = document.createElement("input"); inp.type = "checkbox"; inp.checked = val;
+      inp.onchange = () => { setter(inp.checked); push(); };
+    } else if (typeof val === "number") {
+      inp = document.createElement("input"); inp.type = "number"; inp.value = val;
+      inp.step = ["delay", "on", "off", "phase", "mult"].includes(key) ? 0.05 : 1;
+      inp.onchange = () => { setter(parseFloat(inp.value) || 0); push(); };
+    } else {
+      inp = document.createElement("input"); inp.type = "text"; inp.value = val;
+      inp.onchange = () => { setter(inp.value); push(); };
+    }
+    row.appendChild(inp);
+    return row;
+  }
+
+  function group(title, hint) {
+    const g = document.createElement("div"); g.className = "pgroup";
+    const h = document.createElement("h4"); h.textContent = title; g.appendChild(h);
+    if (hint) { const p = document.createElement("p"); p.className = "ghint"; p.textContent = hint; g.appendChild(p); }
+    return g;
+  }
+
+  function buildProps() {
+    const root = $("props-root");
+    const o = selObj();
+    root.innerHTML = "";
+    syncPropsVisibility();
+    if (!o) return;
+    const meta = sel.i != null ? regOf(sel.t) : SINGLETONS[sel.t];
+
+    // header: picture + name + what it does
+    const head = document.createElement("div"); head.className = "props-head";
+    const img = document.createElement("img");
+    img.src = thumbURL(sel.i != null ? sel.t : sel.t === "spawn" ? "spawn" : "door");
+    const hd = document.createElement("div");
+    hd.innerHTML = `<h3>${meta.label}</h3><p>${meta.desc}</p>`;
+    head.appendChild(img); head.appendChild(hd);
+    root.appendChild(head);
+
+    if (sel.i != null) {
+      const acts = document.createElement("div"); acts.className = "props-actions";
+      const bd = document.createElement("button"); bd.textContent = "⧉ Duplicate"; bd.onclick = dupSel;
+      const bx2 = document.createElement("button"); bx2.textContent = "🗑 Delete"; bx2.className = "danger"; bx2.onclick = deleteSel;
+      acts.appendChild(bd); acts.appendChild(bx2);
+      root.appendChild(acts);
+    }
+
+    const keys = Object.keys(o).filter((k) => k !== "zone" && k !== "deadly");
+    const posKeys = keys.filter((k) => POS_KEYS.includes(k));
+    const linkKeys = keys.filter((k) => LINK_KEYS.includes(k));
+    const pathKeys = keys.filter((k) => PATH_KEYS.includes(k));
+    const behaveKeys = keys.filter((k) => !posKeys.includes(k) && !linkKeys.includes(k) && !pathKeys.includes(k));
+
+    if (posKeys.length) {
+      const g = group(posKeys.some((k) => ["w", "h", "r"].includes(k)) ? "Position & size" : "Position");
+      for (const k of posKeys) g.appendChild(fieldRow(k, o[k], (v) => { o[k] = v; dirty = true; }));
+      root.appendChild(g);
+    }
+    if (behaveKeys.length) {
+      const g = group("Behaviour");
+      for (const k of behaveKeys) g.appendChild(fieldRow(k, o[k], (v) => { o[k] = v; dirty = true; }));
+      root.appendChild(g);
+    }
+    if (linkKeys.length) {
+      const g = group("Connections", sel.t === "buttons" ? "Tick every gate this plate should open or close." : null);
+      for (const k of linkKeys) {
+        if (k === "targets") {
+          if (!level.gates.length) {
+            const p = document.createElement("p"); p.className = "pnote";
+            p.textContent = "No gates in the level yet — place a Gate first, then link it here.";
+            g.appendChild(p);
+          } else {
+            for (const gt of level.gates) {
+              const line = document.createElement("label"); line.className = "chkline";
+              const cb = document.createElement("input"); cb.type = "checkbox";
+              cb.checked = o.targets.includes(gt.id);
+              cb.onchange = () => {
+                o.targets = cb.checked ? [...o.targets, gt.id] : o.targets.filter((t2) => t2 !== gt.id);
+                push();
+              };
+              line.appendChild(cb);
+              line.appendChild(Object.assign(document.createElement("span"), { textContent: `Gate "${gt.id}"` }));
+              line.appendChild(Object.assign(document.createElement("small"), { textContent: ` at x ${gt.x}` }));
+              g.appendChild(line);
+            }
+          }
+        } else if (k === "needKey") {
+          const row = document.createElement("div"); row.className = "prow";
+          row.innerHTML = `<div class="plab"><b>Opens with key</b><small>pick a key, or none for plate control</small></div>`;
+          const sel2 = document.createElement("select");
+          const none = document.createElement("option"); none.value = ""; none.textContent = "— no key —"; sel2.appendChild(none);
+          for (const kk of level.keys) { const op = document.createElement("option"); op.value = kk.id; op.textContent = `Key "${kk.id}"`; sel2.appendChild(op); }
+          sel2.value = o.needKey || "";
+          sel2.onchange = () => { if (sel2.value) o.needKey = sel2.value; else delete o.needKey; push(); };
+          row.appendChild(sel2);
+          g.appendChild(row);
+        } else {
+          g.appendChild(fieldRow(k, o[k], (v) => { o[k] = v; dirty = true; }));
+        }
+      }
+      // gates: offer needKey even if absent
+      if (sel.t === "gates" && !("needKey" in o)) {
+        const row = document.createElement("div"); row.className = "prow";
+        row.innerHTML = `<div class="plab"><b>Opens with key</b><small>pick a key, or none for plate control</small></div>`;
+        const sel2 = document.createElement("select");
+        const none = document.createElement("option"); none.value = ""; none.textContent = "— no key —"; sel2.appendChild(none);
+        for (const kk of level.keys) { const op = document.createElement("option"); op.value = kk.id; op.textContent = `Key "${kk.id}"`; sel2.appendChild(op); }
+        sel2.onchange = () => { if (sel2.value) o.needKey = sel2.value; push(); buildProps(); };
+        row.appendChild(sel2);
+        g.appendChild(row);
+      }
+      root.appendChild(g);
+    }
+    if (o.zone) {
+      const g = group("Trigger zone", "The object activates the moment the player enters this area. Drag the dashed box on the canvas, or fine-tune here.");
+      for (const zk of ["x", "y", "w", "h"]) {
+        g.appendChild(fieldRow(zk, o.zone[zk], (v) => { o.zone[zk] = v; dirty = true; }));
+      }
+      root.appendChild(g);
+    }
+    if (pathKeys.length) {
+      const g = group(sel.t === "portals" ? "Exit point" : "Path end",
+        sel.t === "portals" ? "Where the player pops out. Drag the ◆ diamond on the canvas." : "The far point it travels to. Drag the ◆ diamond on the canvas.");
+      for (const k of pathKeys) g.appendChild(fieldRow(k, o[k], (v) => { o[k] = v; dirty = true; }));
+      root.appendChild(g);
+    }
+    if (!mqDesktop.matches) $("props-sheet-title").textContent = meta.label;
+  }
+
+  function syncPropsVisibility() {
+    const has = !!selObj();
+    if (mqDesktop.matches) {
+      $("props-sheet").style.display = "none";
+      $("dock-right-empty").style.display = has ? "none" : "";
+    } else {
+      $("props-sheet").style.display = has ? "" : "none";
+    }
+  }
+
+  // ================= layout re-parenting (mobile sheets <-> desktop docks) =================
+  function placeRoots() {
+    const pr = $("palette-root"), ps = $("props-root");
+    if (mqDesktop.matches) {
+      $("dock-left").appendChild(pr);
+      $("dock-right").insertBefore(ps, $("dock-right-empty"));
+      $("palette-sheet").style.display = "none";
+    } else {
+      $("palette-slot").appendChild(pr);
+      $("props-slot").appendChild(ps);
+    }
+    syncPropsVisibility();
+  }
+  mqDesktop.addEventListener("change", placeRoots);
+
+  $("btn-add").onclick = () => { sfx("click"); $("palette-sheet").style.display = ""; };
+  $("palette-close").onclick = () => { sfx("click"); $("palette-sheet").style.display = "none"; };
+  $("props-close").onclick = () => { sfx("click"); sel = null; sheetShift = 0; buildProps(); };
+
+  // ================= drawer =================
   function syncDrawer() {
     $("lv-name").value = level.name; $("lv-hint").value = level.hint || "";
     $("lv-author").value = level.author || ""; $("lv-theme").value = level.theme;
@@ -581,13 +747,13 @@
   $("lv-name").onchange = () => { level.name = $("lv-name").value || "My Level"; $("lv-label").textContent = level.name; push(); };
   $("lv-hint").onchange = () => { level.hint = $("lv-hint").value; push(); };
   $("lv-author").onchange = () => { level.author = $("lv-author").value; push(); };
-  $("lv-theme").onchange = () => { level.theme = $("lv-theme").value; push(); buildToolbar(); };
+  $("lv-theme").onchange = () => { level.theme = $("lv-theme").value; push(); buildPalette(); };
   $("lv-w").onchange = () => { level.w = Math.max(960, Math.min(9600, +$("lv-w").value || 960)); push(); sizeWorldBuf(); clampView(); };
   $("lv-h").onchange = () => { level.h = Math.max(540, Math.min(3240, +$("lv-h").value || 540)); push(); sizeWorldBuf(); clampView(); };
   $("lv-reverse").onchange = () => { level.reverse = $("lv-reverse").checked; push(); };
   $("btn-clear").onclick = () => {
-    if (!confirm("Clear the whole level? This can be undone with ↩.")) return;
-    level = blank(); sel = null; push(); syncDrawer(); syncSheet(); sizeWorldBuf();
+    if (!confirm("Clear the whole level? (↩ Undo can bring it back)")) return;
+    level = blank(); sel = null; push(); syncDrawer(); buildProps(); sizeWorldBuf();
   };
   $("btn-export").onclick = () => {
     const blob = new Blob([JSON.stringify(level, null, 1)], { type: "application/json" });
@@ -601,25 +767,22 @@
     inp.onchange = () => {
       const f = inp.files[0]; if (!f) return;
       f.text().then((txt) => {
-        try { level = Object.assign(blank(), JSON.parse(txt)); sel = null; push(); syncDrawer(); syncSheet(); sizeWorldBuf(); }
+        try { level = Object.assign(blank(), JSON.parse(txt)); sel = null; push(); syncDrawer(); buildProps(); sizeWorldBuf(); }
         catch (err) { alert("Not valid level JSON: " + err.message); }
       });
     };
     inp.click();
   };
 
-  // ================= x-ray / undo buttons =================
+  // ================= topbar toggles =================
   $("btn-xray").onclick = () => {
     xray = !xray; dirty = true; sfx("click");
     $("btn-xray").classList.toggle("on", xray);
-    $("info-strip").textContent = xray
-      ? "X-ray ON: hidden trolls (fakes, invisible platforms, pop-up spikes...) are ghosted so YOU can see them."
-      : "X-ray OFF: this is exactly what players will see. Spooky, right?";
   };
   $("btn-undo").onclick = () => { sfx("click"); undo(); };
   $("btn-redo").onclick = () => { sfx("click"); redo(); };
 
-  // ================= test play + verify + share =================
+  // ================= test / verify / share =================
   function syncShareBtn() {
     const ok = verifiedHash && verifiedHash === levelHash();
     const b = $("btn-share");
@@ -632,7 +795,6 @@
     localStorage.setItem("ld_custom_level", levelJSON());
     localStorage.removeItem("ld_verify");
     window.open("index.html?custom=1", "ldtest");
-    $("info-strip").textContent = "Test running in the other tab. Beat it from spawn to VERIFY the level — then come back here to share.";
   };
   function checkVerify() {
     try {
@@ -642,7 +804,6 @@
         localStorage.setItem("ld_verified_hash", verifiedHash);
         syncShareBtn();
         sfx("complete");
-        $("info-strip").textContent = "VERIFIED ✓ — you beat it, so it's beatable. The Share button is unlocked.";
       }
     } catch (_) {}
   }
@@ -653,13 +814,12 @@
   $("btn-share").onclick = async () => {
     if (!(verifiedHash && verifiedHash === levelHash())) {
       sfx("error");
-      $("info-strip").textContent = "🔒 Not verified yet — hit ▶ Test and beat your own level first. If you can't beat it, neither can they.";
+      alert("🔒 Not verified yet.\n\nHit ▶ Test and beat your own level from spawn — if you can't beat it, neither can anyone else. Any edit needs a fresh verify run.");
       return;
     }
     sfx("complete");
     const code = await LDS.encode(level);
-    const url = location.href.replace(/editor\.html.*$/, "index.html#lvl=") + code;
-    $("share-url").value = url;
+    $("share-url").value = location.href.replace(/editor\.html.*$/, "index.html#lvl=") + code;
     $("share-code").value = code;
     $("share-dlg").style.display = "";
   };
@@ -667,66 +827,113 @@
   $("copy-code").onclick = () => { navigator.clipboard.writeText($("share-code").value).catch(() => {}); $("copy-code").textContent = "✓"; setTimeout(() => $("copy-code").textContent = "Copy", 1200); };
   $("share-close").onclick = () => $("share-dlg").style.display = "none";
 
-  // ================= help =================
+  // ================= help (with Show-me highlighting) =================
+  const HELP_SECTIONS = [
+    ["Placing objects", () => mqDesktop.matches ? "#dock-left" : "#btn-add",
+      "Pick an object from the palette, then tap the canvas where you want it. Hold Shift to place several. Press the tile again (or ✕ on the banner) to cancel."],
+    ["Moving around", "#stage",
+      "Drag empty space to pan. Pinch or scroll to zoom. Your level can be up to 10 screens wide — set its size in the ☰ menu."],
+    ["The minimap", "#minimap",
+      "The little map shows your whole level and the box shows what's on screen. Tap anywhere on it to jump there."],
+    ["Editing objects", null,
+      "Tap any object to open its panel — every setting is explained there. Drag objects to move; drag the ■ corner to resize; dashed boxes are trigger zones; ◆ diamonds are path ends and portal exits. Tap the same spot again to cycle through overlapping objects."],
+    ["X-ray vision", "#btn-xray",
+      "Fake blocks (hatched), invisible platforms, pop-up spikes and hidden doors are invisible to players. X-ray ghosts them for YOU. Toggle it off to see the level exactly as players will."],
+    ["Test & verify", "#btn-test",
+      "▶ Test opens your level in the game. Beat it from spawn and it becomes verified — proof it's beatable."],
+    ["Sharing", "#btn-share",
+      "Once verified, Share gives you a link and a code. Friends paste the code on the game's title screen. Any edit re-locks sharing until you verify again."],
+  ];
   $("btn-help").onclick = () => { sfx("click"); buildHelp(); $("help-dlg").style.display = ""; };
   $("help-close").onclick = () => $("help-dlg").style.display = "none";
   function buildHelp() {
     const b = $("help-body");
-    let html = `
-      <h4>The basics</h4>
-      <p><b>Place:</b> tap a palette tile, then tap the canvas. Hold Shift to place several.<br/>
-      <b>Move:</b> drag any object. <b>Resize:</b> drag the ■ corner handle.<br/>
-      <b>Pan:</b> drag empty space (or two fingers). <b>Zoom:</b> pinch or scroll.<br/>
-      <b>Overlapping objects:</b> tap the same spot again to cycle through them.<br/>
-      <b>Zones & paths:</b> dashed box = trigger zone, ◆ = path end / portal exit — drag them.</p>
-      <h4>Big levels & the camera</h4>
-      <p>Set Width/Height in the ☰ menu — up to 10 screens wide. The camera follows the player.
-      Drop a <b>Camera Zone</b> to lock the view inside a region: players can't see past it. Levels start showing only the spawn area.</p>
-      <h4>Verify & share</h4>
-      <p>▶ Test opens your level in the game. Beat it from spawn and it becomes <b>verified</b> —
-      only then can you Share. Any edit un-verifies it. No impossible levels. 😈</p>
-      <h4>Objects</h4>`;
-    for (const c of CATS) {
-      html += `<h4>${c}</h4>`;
-      for (const r of REG.filter((r) => r.cat === c)) html += `<p><b>${r.label}:</b> ${r.desc}</p>`;
+    b.innerHTML = "";
+    for (const [title, target, text] of HELP_SECTIONS) {
+      const h = document.createElement("h4");
+      h.textContent = title;
+      const tgt = typeof target === "function" ? target() : target;
+      if (tgt) {
+        const btn = document.createElement("button");
+        btn.className = "showme"; btn.textContent = "show me";
+        btn.onclick = () => { $("help-dlg").style.display = "none"; flash(tgt); };
+        h.appendChild(btn);
+      }
+      const p = document.createElement("p"); p.textContent = text;
+      b.appendChild(h); b.appendChild(p);
     }
-    b.innerHTML = html;
+    const h2 = document.createElement("h4"); h2.textContent = "Every object, explained";
+    b.appendChild(h2);
+    for (const c of CATS) {
+      const p = document.createElement("p");
+      p.innerHTML = REG.filter((r) => r.cat === c).map((r) => `<b>${r.label}:</b> ${r.desc}`).join("<br/>");
+      b.appendChild(p);
+    }
+  }
+  function flash(selector) {
+    const el = document.querySelector(selector);
+    if (!el) return;
+    el.classList.add("flash");
+    setTimeout(() => el.classList.remove("flash"), 2200);
   }
 
-  // ================= guided tour =================
+  // ================= spotlight tour =================
   const TOUR = [
-    ["Welcome to Create 😈", "This is the Level Devil editor. What you see here is EXACTLY what players see — same renderer, just paused. Let's take 60 seconds to learn it."],
-    ["The palette", "The bottom bar holds every object, with a picture of each. Tabs group them: Terrain, Hazards, Traps, Interactive, Collect, Level. Tap a tile, then tap the canvas to place it."],
-    ["Moving around", "Drag empty space to pan, pinch or scroll to zoom, and use the minimap (top-right) to jump anywhere. Your level can be up to 10 screens wide — set the size in the ☰ menu."],
-    ["Trolls & X-ray", "Fake floors, invisible platforms and pop-up spikes are invisible to players — the 👁 X-ray button ghosts them for YOU while editing. Toggle it off to preview the player's view."],
-    ["Zones, paths & properties", "Select an object and a panel slides up with everything editable. Dashed boxes are trigger zones, ◆ diamonds are path ends and portal exits — drag them where you want."],
-    ["Verify, then share", "Hit ▶ Test to play your level. Beat it from spawn and it's VERIFIED — unlocking 🔗 Share, which gives you a link and a code anyone can play. If you can't beat it, nobody can. Now go be evil."],
+    { sel: null, title: "Welcome to Create 😈", text: "This editor shows your level EXACTLY as players will see it — same renderer, just paused. Let's take 60 seconds to find everything." },
+    { sel: () => mqDesktop.matches ? "#dock-left" : "#btn-add", title: "The palette", text: "Every placeable object lives here, with a picture and a description. Pick one, then tap the canvas to place it." },
+    { sel: "#stage", title: "Your level", text: "Drag empty space to pan, pinch or scroll to zoom. Levels can be up to 10 screens wide (☰ menu → size). The camera follows the player in-game, so build beyond the first screen!" },
+    { sel: "#minimap", title: "The minimap", text: "Your whole level at a glance — the bright box is your current view. Tap the map to jump anywhere." },
+    { sel: "#btn-xray", title: "X-ray vision", text: "Fake blocks, invisible platforms and buried spikes can't be seen by players — this eye ghosts them for YOU. Toggle it off to preview the player's view." },
+    { sel: "#btn-test", title: "Test it", text: "▶ Test opens your level in the game. Beating it from spawn VERIFIES the level — proof that it's possible." },
+    { sel: "#btn-share", title: "Share it", text: "Once verified, Share creates a link + code anyone can play from the game's title screen. If you can't beat it, nobody can. Now go be evil." },
   ];
-  let tourAt = 0;
-  function showTour(i) {
-    tourAt = i;
-    $("tour").style.display = "";
-    $("tour-title").textContent = TOUR[i][0];
-    $("tour-text").textContent = TOUR[i][1];
-    $("tour-step").textContent = `${i + 1}/${TOUR.length}`;
-    $("tour-next").textContent = i === TOUR.length - 1 ? "Let's go!" : "Next →";
+  let tourAt = -1;
+  function positionTour() {
+    if (tourAt < 0) return;
+    const step = TOUR[tourAt];
+    const spot = $("tour-spot"), card = $("tour-card");
+    const tgt = step.sel ? document.querySelector(typeof step.sel === "function" ? step.sel() : step.sel) : null;
+    if (tgt) {
+      const r = tgt.getBoundingClientRect();
+      spot.style.left = (r.left - 7) + "px"; spot.style.top = (r.top - 7) + "px";
+      spot.style.width = (r.width + 14) + "px"; spot.style.height = (r.height + 14) + "px";
+      const ch = 200, cw = Math.min(370, innerWidth - 22), margin = 14;
+      if (r.height > innerHeight * 0.55 && (innerWidth - r.right > cw + margin || r.left > cw + margin)) {
+        // tall target (a dock): put the card BESIDE it so it never covers what it describes
+        card.style.left = (innerWidth - r.right > cw + margin ? r.right + margin : r.left - cw - margin) + "px";
+        card.style.top = Math.max(10, r.top + 30) + "px";
+      } else {
+        let cy = r.bottom + margin;
+        if (cy + ch > innerHeight) cy = Math.max(10, r.top - ch - margin);
+        card.style.top = cy + "px";
+        card.style.left = Math.max(10, Math.min(innerWidth - cw - 12, r.left)) + "px";
+      }
+    } else {
+      spot.style.left = "50vw"; spot.style.top = "40vh"; spot.style.width = "0px"; spot.style.height = "0px";
+      card.style.left = Math.max(10, innerWidth / 2 - 180) + "px";
+      card.style.top = Math.max(10, innerHeight / 2 - 140) + "px";
+    }
+    $("tour-title").textContent = step.title;
+    $("tour-text").textContent = step.text;
+    $("tour-step").textContent = `${tourAt + 1}/${TOUR.length}`;
+    $("tour-next").textContent = tourAt === TOUR.length - 1 ? "Let's go!" : "Next →";
   }
-  $("tour-next").onclick = () => {
-    sfx("click");
-    if (tourAt + 1 < TOUR.length) showTour(tourAt + 1);
-    else { $("tour").style.display = "none"; localStorage.setItem("ld_tour_done", "1"); }
-  };
-  $("tour-skip").onclick = () => { sfx("click"); $("tour").style.display = "none"; localStorage.setItem("ld_tour_done", "1"); };
+  function showTour(i) { tourAt = i; $("tour").style.display = ""; positionTour(); }
+  function endTour() { tourAt = -1; $("tour").style.display = "none"; localStorage.setItem("ld_tour_done", "1"); }
+  $("tour-next").onclick = () => { sfx("click"); (tourAt + 1 < TOUR.length) ? showTour(tourAt + 1) : endTour(); };
+  $("tour-skip").onclick = () => { sfx("click"); endTour(); };
   $("btn-tour").onclick = () => { $("drawer").style.display = "none"; showTour(0); };
 
   // ================= boot =================
-  buildToolbar();
+  buildPalette();
+  placeRoots();
   syncDrawer();
   syncShareBtn();
   sizeWorldBuf();
   sizeCanvas();
   view.zoom = Math.min(cv.height / 560, 1.2);
   clampView();
+  buildProps();
   if (!localStorage.getItem("ld_tour_done")) showTour(0);
   requestAnimationFrame(frame);
 
@@ -736,8 +943,8 @@
     get sel() { return sel; },
     get view() { return view; },
     get verified() { return verifiedHash === levelHash(); },
-    place(t, x, y) { const r = regOf(t); const o = r.mk(x, y); level[t].push(o); sel = { t, i: level[t].length - 1 }; push(); syncSheet(); return o; },
-    select(t, i) { sel = { t, i }; syncSheet(); },
+    place(t, x, y) { const r = regOf(t); const o = r.mk(x, y); level[t].push(o); sel = { t, i: level[t].length - 1 }; push(); buildProps(); ensureVisible(); return o; },
+    select(t, i) { sel = { t, i }; buildProps(); },
     push, hash: levelHash,
   };
 })();

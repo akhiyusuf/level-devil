@@ -16,14 +16,14 @@ window.SFX = (() => {
 
   for (const n of NAMES) {
     bank[n] = { i: 0, pool: Array.from({ length: POLY }, () => {
-      const a = new Audio("assets/sfx/" + n + ".ogg");
+      const a = new Audio("assets/sfx/" + n + ".ogg?v=7");
       a.preload = "auto";
       return a;
     }) };
   }
 
   // per-sound loudness trim so nothing screams
-  const TRIM = { land: 0.35, slam: 0.7, laser: 0.4, pop: 0.5, click: 0.6, death: 0.9, jump: 0.5 };
+  const TRIM = { land: 0.35, slam: 0.7, laser: 0.4, pop: 0.5, click: 0.6, death: 0.85, jump: 0.45, door: 0.7 };
   const lastAt = {};
 
   function play(name) {

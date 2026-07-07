@@ -47,6 +47,41 @@ window.LDR = (() => {
     outline(r.x, r.y, r.w, r.h);
   }
 
+  // union-silhouette outline: paint all rects into a mask, halo-blit it, then fill.
+  // Adjacent rects (real or fake) merge into one shape — no seams, no tells.
+  let maskCv = null;
+  function terrainPass(rects) {
+    if (!rects.length) return;
+    const w = bctx.canvas.width, h = bctx.canvas.height;
+    if (!maskCv || maskCv.width !== w || maskCv.height !== h) {
+      maskCv = document.createElement("canvas"); maskCv.width = w; maskCv.height = h;
+    }
+    const m = maskCv.getContext("2d");
+    m.clearRect(0, 0, w, h);
+    m.fillStyle = C.outline;
+    for (const r of rects) {
+      const X = bx(r.x), Y = by(r.y);
+      m.fillRect(X, Y, Math.max(1, bx(r.x + r.w) - X), Math.max(1, by(r.y + r.h) - Y));
+    }
+    for (const [ox, oy] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) bctx.drawImage(maskCv, ox, oy);
+    for (const r of rects) {
+      rect(r.x, r.y, r.w, r.h, C.brick);
+      rect(r.x, r.y + r.h - S, r.w, S, C.brickShade);
+    }
+  }
+
+  // editor X-ray marking for fake blocks: diagonal hatch the creator can see
+  function hatch(r) {
+    const X = bx(r.x), Y = by(r.y), W = Math.max(1, bx(r.x + r.w) - X), H = Math.max(1, by(r.y + r.h) - Y);
+    bctx.save();
+    bctx.beginPath(); bctx.rect(X, Y, W, H); bctx.clip();
+    bctx.strokeStyle = "rgba(255,255,255,0.5)"; bctx.lineWidth = 1;
+    for (let d = -H; d < W; d += 5) {
+      bctx.beginPath(); bctx.moveTo(X + d, Y + H); bctx.lineTo(X + d + H, Y); bctx.stroke();
+    }
+    bctx.restore();
+  }
+
   // stepped-pyramid spikes (like the icon)
   function spikeStrip(x, y, w, h, dir, color) {
     const X = bx(x), Y = by(y), W = Math.max(2, bx(x + w) - X), H = Math.max(2, by(y + h) - Y);
@@ -286,9 +321,15 @@ window.LDR = (() => {
     // portals
     for (const p of L.portals) { drawPortalAt(p.ax, p.ay, p.w, p.h); drawPortalAt(p.bx, p.by, p.w, p.h); }
 
-    // terrain
-    for (const r of L.fakes) drawBrick(r);
-    for (const r of L.solids) drawBrick(r);
+    // terrain — solids, fakes and untriggered traps share ONE union silhouette outline,
+    // so no per-rect seam can betray where the lies begin. [troll-preserving]
+    const terrain = [
+      ...L.fakes, ...L.solids,
+      ...L.collapse.filter((r) => !r.touched),
+      ...L.disappear.filter((r) => !r.touched && !r.gone),
+    ];
+    terrainPass(terrain);
+    if (XRAY) for (const r of L.fakes) hatch(r);         // editor-only: mark the lies for the creator
     for (const r of L.ice) { rect(r.x, r.y, r.w, r.h, C.ice); rect(r.x, r.y, r.w, S, C.iceShade); outline(r.x, r.y, r.w, r.h); }
     for (const r of L.conveyors) {
       drawBrick(r, C.brickShade);
@@ -300,8 +341,9 @@ window.LDR = (() => {
       }
     }
     for (const r of L.oneways) { rect(r.x, r.y, r.w, r.h, C.brickShade); rect(r.x, r.y, r.w, S, C.brick); }
-    for (const r of L.disappear) if (!r.gone) { bctx.globalAlpha = r.alpha; drawBrick(r); bctx.globalAlpha = 1; }
-    for (const r of L.collapse) drawBrick(r, r.touched ? C.brickShade : C.brick);
+    // triggered traps have revealed themselves — draw individually (fade / tint)
+    for (const r of L.disappear) if (!r.gone && r.touched) { bctx.globalAlpha = r.alpha; drawBrick(r); bctx.globalAlpha = 1; }
+    for (const r of L.collapse) if (r.touched) drawBrick(r, C.brickShade);
     for (const a of L.appearing) { if (a.on) drawBrick(a); else if (XRAY) { bctx.globalAlpha = 0.3; drawBrick(a); bctx.globalAlpha = 1; } }
     for (const r of L.invisible) {
       if (r.seen) { bctx.globalAlpha = 0.5; drawBrick(r); bctx.globalAlpha = 1; }
@@ -413,7 +455,7 @@ window.LDR = (() => {
   const THUMB_SAMPLES = {
     solids:    { solids: [{ x: 440, y: 480, w: 80, h: 40 }] },
     oneways:   { oneways: [{ x: 440, y: 495, w: 80, h: 14 }] },
-    fakes:     { fakes: [{ x: 440, y: 480, w: 80, h: 40 }] },
+    fakes:     { fakes: [{ x: 440, y: 480, w: 80, h: 40 }], __xray: 1 }, // palette shows the hatch so creators can tell
     invisible: { invisible: [{ x: 442, y: 490, w: 76, h: 16 }], __seen: 1 },
     ice:       { ice: [{ x: 440, y: 485, w: 80, h: 30 }] },
     conveyors: { conveyors: [{ x: 435, y: 485, w: 90, h: 30, belt: 140 }] },

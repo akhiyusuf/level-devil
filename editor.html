@@ -4,13 +4,13 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
   <title>Level Devil — Create</title>
-  <link rel="stylesheet" href="css/editor.css?v=6" />
+  <link rel="stylesheet" href="css/editor.css?v=7" />
 </head>
 <body>
 
   <!-- ============ top bar ============ -->
   <div class="topbar">
-    <button id="btn-menu" class="icon-btn" title="Level menu">☰</button>
+    <button id="btn-menu" class="icon-btn" title="Level settings, import/export">☰</button>
     <span class="tag">CREATE</span>
     <span id="lv-label" class="lv-label">My Level</span>
     <span class="spacer"></span>
@@ -22,34 +22,47 @@
     <button id="btn-share" class="share-btn locked" title="Beat your level in Test to unlock sharing">🔒 Share</button>
   </div>
 
-  <!-- ============ canvas ============ -->
-  <div class="stage" id="stage">
-    <canvas id="ed"></canvas>
-    <canvas id="minimap" title="Minimap — tap to jump"></canvas>
-    <div id="zoom-pill" class="zoom-pill">100%</div>
-    <div id="armed-banner" class="armed-banner" style="display:none"></div>
-  </div>
+  <!-- ============ main: desktop docks around the stage ============ -->
+  <div class="main">
+    <aside id="dock-left">
+      <div class="dock-head">Objects <span class="dock-hint">click, then click the canvas</span></div>
+      <div id="palette-root"></div>
+    </aside>
 
-  <!-- ============ properties bottom sheet ============ -->
-  <div id="sheet" class="sheet" style="display:none">
-    <div class="sheet-grab" id="sheet-grab"><span></span></div>
-    <div class="sheet-head">
-      <h3 id="sheet-title">Object</h3>
-      <div class="sheet-actions">
-        <button id="btn-dup">⧉ Duplicate</button>
-        <button id="btn-del" class="danger">🗑 Delete</button>
-        <button id="btn-sheet-close">✕</button>
+    <div class="stage" id="stage">
+      <canvas id="ed"></canvas>
+      <canvas id="minimap" title="Minimap — tap to jump"></canvas>
+      <div id="zoom-pill" class="zoom-pill">100%</div>
+      <div id="armed-banner" class="armed-banner" style="display:none">
+        <span id="armed-text"></span><button id="armed-cancel">✕</button>
       </div>
+      <button id="btn-add" class="fab">＋ Add</button>
     </div>
-    <p id="sheet-desc" class="sheet-desc"></p>
-    <div id="sheet-body" class="sheet-body"></div>
+
+    <aside id="dock-right">
+      <div id="props-root"></div>
+      <div id="dock-right-empty" class="dock-empty">
+        <p>Nothing selected.</p>
+        <p>Click an object on the canvas to edit it here — or pick something from the palette on the left to place.</p>
+      </div>
+    </aside>
   </div>
 
-  <!-- ============ palette ============ -->
-  <div class="toolbar">
-    <div class="info-strip" id="info-strip">Tap an object, then tap the canvas to place it. Drag objects to move them.</div>
-    <div class="cats" id="cats"></div>
-    <div class="palette" id="palette"></div>
+  <!-- ============ mobile bottom sheets ============ -->
+  <div id="palette-sheet" class="bsheet" style="display:none">
+    <div class="bsheet-head">
+      <h3>Add an object</h3>
+      <button id="palette-close" class="bsheet-close">✕</button>
+    </div>
+    <div id="palette-slot" class="bsheet-body"></div>
+  </div>
+
+  <div id="props-sheet" class="bsheet" style="display:none">
+    <div class="bsheet-head">
+      <h3 id="props-sheet-title">Object</h3>
+      <button id="props-close" class="bsheet-close">✕</button>
+    </div>
+    <div id="props-slot" class="bsheet-body"></div>
   </div>
 
   <!-- ============ level menu drawer ============ -->
@@ -67,9 +80,10 @@
         </select>
       </label>
       <div class="two">
-        <label>Width <input id="lv-w" type="number" min="960" max="9600" step="480" /></label>
-        <label>Height <input id="lv-h" type="number" min="540" max="3240" step="270" /></label>
+        <label>Width (px) <input id="lv-w" type="number" min="960" max="9600" step="480" /></label>
+        <label>Height (px) <input id="lv-h" type="number" min="540" max="3240" step="270" /></label>
       </div>
+      <p class="drawer-note">One screen = 960 × 540. Bigger levels scroll — players only ever see one screen at a time.</p>
       <label class="chk"><input id="lv-reverse" type="checkbox" /> Reversed controls (whole level)</label>
       <hr />
       <div class="drawer-btns">
@@ -105,9 +119,10 @@
     </div>
   </div>
 
-  <!-- ============ guided tour ============ -->
-  <div id="tour" class="modal" style="display:none">
-    <div class="modal-card tour-card">
+  <!-- ============ guided tour (spotlight) ============ -->
+  <div id="tour" style="display:none">
+    <div id="tour-spot"></div>
+    <div id="tour-card" class="tour-card">
       <h3 id="tour-title">Welcome!</h3>
       <p id="tour-text"></p>
       <div class="tour-nav">
@@ -118,10 +133,10 @@
     </div>
   </div>
 
-  <script src="js/levels.js?v=6"></script>
-  <script src="js/render.js?v=6"></script>
-  <script src="js/sfx.js?v=6"></script>
-  <script src="js/share.js?v=6"></script>
-  <script src="js/editor.js?v=6"></script>
+  <script src="js/levels.js?v=7"></script>
+  <script src="js/render.js?v=7"></script>
+  <script src="js/sfx.js?v=7"></script>
+  <script src="js/share.js?v=7"></script>
+  <script src="js/editor.js?v=7"></script>
 </body>
 </html>

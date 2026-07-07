@@ -33,6 +33,7 @@ const LEVELS = [
       { x: 0,   y: GROUND, w: 430, h: 40 },
       { x: 560, y: GROUND, w: 400, h: 40 },
     ],
+    coins: [{ x: 470, y: 445 }, { x: 495, y: 420 }, { x: 520, y: 445 }], // arc over the gap
   },
 
   // 2 — Trust Issues. Floor looks whole; the middle is a lie.
@@ -66,6 +67,7 @@ const LEVELS = [
       { x: 550, y: 470, w: 90, h: 22, delay: 0.25 },
       { x: 660, y: 500, w: 90, h: 22, delay: 0.25 },
     ],
+    coins: [{ x: 295, y: 445 }, { x: 445, y: 405 }, { x: 595, y: 445 }], // hover above the stones
   },
 
   // 4 — Rise Up. Flat run, but spikes ambush from the floor.
@@ -111,6 +113,7 @@ const LEVELS = [
       { x: 420, y: 420, w: 110, h: 22, delay: 0.18 },
       { x: 600, y: 460, w: 110, h: 22, delay: 0.18 },
     ],
+    coins: [{ x: 295, y: 435 }, { x: 475, y: 395 }, { x: 655, y: 435 }],
     spikes: [{ x: 180, y: 526, w: 600, h: 14, dir: "up" }], // pit floor punishes falls
   },
 
@@ -175,6 +178,7 @@ const LEVELS = [
     fallers: [
       { x: 740, y: -70, w: 70, h: 70, deadly: true, zone: { x: 630, y: 0, w: 120, h: 540 } },
     ],
+    coins: [{ x: 345, y: 425 }, { x: 520, y: 430 }, { x: 705, y: 425 }],
     spikes: [{ x: 240, y: 526, w: 620, h: 14, dir: "up" }],
   },
 ];

@@ -9,12 +9,19 @@
   const canvas = document.getElementById("game");
   const ctx = canvas.getContext("2d");
 
-  // ---- theme colours (authentic Level Devil: light room, black char, red spikes) ----
+  // ---- theme colours (authentic Level Devil: warm sand room, terracotta bricks) ----
   const C = {
-    bg: "#f4f1e8", grid: "#e7e2d3", solid: "#17171c", solidEdge: "#34343f",
-    player: "#16161a", eye: "#ffffff",
-    spike: "#e5342b", door: "#37c08a", doorFrame: "#0f7a52",
-    particle: "#e5342b", text: "#e9e9f0", hint: "rgba(22,22,26,0.5)",
+    bg: "#d8c6a0",           // warm sand background
+    ceiling: "#c6ae82",      // darker top wall band
+    ceilingEdge: "#8f7048",  // thin line under the ceiling band
+    brick: "#b04a2a",        // terracotta platforms / ground / spikes
+    brickShade: "#8f3a20",   // darker brick for undersides / coins / accents
+    player: "#161616",       // black silhouette (faceless, like OG)
+    door: "#dedbd3",         // pale-gray tombstone exit
+    doorEdge: "#a29e94",     // door outline
+    coin: "#8f3a20",         // dark-red coin dots
+    particle: "#8f3a20",
+    text: "#f6f1e6", hint: "rgba(74,50,28,0.6)",
   };
 
   // ---- character animation state ----
@@ -73,6 +80,7 @@
       popspikes: (src.popspikes || []).map((r) => ({ ...r, y0: r.y, active: false, prog: 0 })),
       // cyclic crushers: idle -> armed(up window) -> down -> hold -> up -> armed ...
       fallers: (src.fallers || []).map((r) => ({ ...r, y0: r.y, phase: "idle", vy: 0, timer: 0 })),
+      coins: (src.coins || []).map((c) => ({ ...c, got: false })),
     };
     player.x = src.spawn.x; player.y = src.spawn.y;
     player.vx = player.vy = 0; player.onGround = false; player.alive = true;
@@ -179,6 +187,14 @@
     updateTraps(dt);
     updateDoor(dt);
 
+    // collect coins (optional bonus -> little pop)
+    for (const c of L.coins) {
+      if (!c.got && overlap(player.x, player.y, player.w, player.h, c.x - 8, c.y - 8, 16, 16)) {
+        c.got = true;
+        for (let n = 0; n < 8; n++) { const a = (Math.PI * 2 * n) / 8; particles.push({ x: c.x, y: c.y, vx: Math.cos(a) * 130, vy: Math.sin(a) * 130 - 60, life: 0.4, r: 2.5 }); }
+      }
+    }
+
     // death: hazards or fell out the bottom
     if (player.y > VH + 40) die();
     if (player.alive && touchingHazard()) die();
@@ -267,15 +283,28 @@
   }
 
   // ---- render ----
+  // top-rounded ("tombstone") rect path; rad = w/2 gives a full semicircular top
+  function archTop(x, y, w, h, rad) {
+    rad = Math.min(rad, w / 2);
+    ctx.beginPath();
+    ctx.moveTo(x, y + h);
+    ctx.lineTo(x, y + rad);
+    ctx.arcTo(x, y, x + rad, y, rad);
+    ctx.lineTo(x + w - rad, y);
+    ctx.arcTo(x + w, y, x + w, y + rad, rad);
+    ctx.lineTo(x + w, y + h);
+    ctx.closePath();
+  }
+
   function drawSolid(r, fill) {
-    ctx.fillStyle = fill || C.solid;
+    ctx.fillStyle = fill || C.brick;
     ctx.fillRect(r.x, r.y, r.w, r.h);
-    ctx.fillStyle = C.solidEdge;
-    ctx.fillRect(r.x, r.y, r.w, 3);
+    ctx.fillStyle = C.brickShade;      // subtle darker underside -> a bit of depth
+    ctx.fillRect(r.x, r.y + r.h - 3, r.w, 3);
   }
 
   function drawSpikeStrip(x, y, w, h, dir) {
-    ctx.fillStyle = C.spike;
+    ctx.fillStyle = C.brick;
     const n = Math.max(1, Math.round(w / 22));
     const tw = w / n;
     ctx.beginPath();
@@ -288,17 +317,17 @@
   }
 
   function render() {
-    // background
+    // background: flat sand + a darker top wall band (framed-room look)
     ctx.fillStyle = C.bg; ctx.fillRect(0, 0, VW, VH);
-    ctx.strokeStyle = C.grid; ctx.lineWidth = 1;
-    for (let gx = 0; gx <= VW; gx += 48) { ctx.beginPath(); ctx.moveTo(gx, 0); ctx.lineTo(gx, VH); ctx.stroke(); }
-    for (let gy = 0; gy <= VH; gy += 48) { ctx.beginPath(); ctx.moveTo(0, gy); ctx.lineTo(VW, gy); ctx.stroke(); }
+    ctx.fillStyle = C.ceiling; ctx.fillRect(0, 0, VW, 66);
+    ctx.fillStyle = C.ceilingEdge; ctx.fillRect(0, 66, VW, 3);
 
-    // door (draw behind player)
+    // exit: pale-gray tombstone arch (draw behind player)
     const d = L.door;
-    ctx.fillStyle = C.doorFrame; ctx.fillRect(d.x - 3, d.y - 3, d.w + 6, d.h + 3);
-    ctx.fillStyle = C.door; ctx.fillRect(d.x, d.y, d.w, d.h);
-    ctx.fillStyle = "#0d3b2c"; ctx.fillRect(d.x + d.w - 12, d.y + d.h / 2 - 4, 6, 8); // handle
+    archTop(d.x - 2, d.y - 2, d.w + 4, d.h + 4, (d.w + 4) / 2); ctx.fillStyle = C.doorEdge; ctx.fill();
+    archTop(d.x, d.y, d.w, d.h, d.w / 2); ctx.fillStyle = C.door; ctx.fill();
+    ctx.strokeStyle = C.doorEdge; ctx.lineWidth = 2;
+    archTop(d.x + 5, d.y + 5, d.w - 10, d.h - 10, (d.w - 10) / 2); ctx.stroke(); // inner gravestone outline
 
     // fakes render exactly like solids (the lie)
     for (const r of L.fakes) drawSolid(r);
@@ -306,18 +335,26 @@
     for (const r of L.solids) drawSolid(r);
     // disappearing (looks identical to solid until it fades -> the troll)
     for (const r of L.disappear) if (!r.gone) { ctx.globalAlpha = r.alpha; drawSolid(r); ctx.globalAlpha = 1; }
-    // collapsing (tints red once it's been triggered)
-    for (const r of L.collapse) drawSolid(r, r.touched ? "#4a2222" : C.solid);
-    // crushers (spiked slabs that drop from the ceiling)
+    // collapsing (darkens once it's been triggered)
+    for (const r of L.collapse) drawSolid(r, r.touched ? C.brickShade : C.brick);
+    // crushers (spiked brick slabs that drop from the ceiling)
     for (const f of L.fallers) if (f.phase !== "idle" || f.y > -60) {
-      ctx.fillStyle = "#2a2a34"; ctx.fillRect(f.x, f.y, f.w, f.h);
-      ctx.fillStyle = C.solidEdge; ctx.fillRect(f.x, f.y, f.w, 3);
+      ctx.fillStyle = C.brick; ctx.fillRect(f.x, f.y, f.w, f.h);
+      ctx.fillStyle = C.brickShade; ctx.fillRect(f.x, f.y + f.h - 3, f.w, 3);
       drawSpikeStrip(f.x, f.y + f.h - 16, f.w, 16, "down"); // teeth on the underside
     }
     // static spikes
     for (const s of L.spikes) drawSpikeStrip(s.x, s.y, s.w, s.h, s.dir || "up");
     // pop spikes
     for (const s of L.popspikes) if (s.prog > 0.02) drawSpikeStrip(s.x, s.y0 - s.h * s.prog, s.w, s.h * s.prog, "up");
+
+    // coins (small dark-red dots)
+    for (const c of L.coins) if (!c.got) {
+      ctx.fillStyle = C.coin;
+      ctx.beginPath(); ctx.arc(c.x, c.y, 6, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = "rgba(255,255,255,0.18)"; // tiny highlight -> reads as a bead
+      ctx.beginPath(); ctx.arc(c.x - 1.5, c.y - 1.5, 2, 0, Math.PI * 2); ctx.fill();
+    }
 
     // player
     if (player.alive) drawCharacter(player);
@@ -344,16 +381,20 @@
     hudName.textContent = won ? "Complete" : L.name;
     hudDeaths.textContent = deaths;
     hudTime.textContent = totalTime.toFixed(1) + "s";
+    if (hudCoinsWrap) {                                   // only show coin stat on coin levels
+      if (L.coins.length) { hudCoinsWrap.style.display = ""; hudCoins.textContent = `${L.coins.filter((c) => c.got).length}/${L.coins.length}`; }
+      else hudCoinsWrap.style.display = "none";
+    }
   }
 
   function drawWin() {
-    ctx.fillStyle = "rgba(20,20,27,0.88)"; ctx.fillRect(0, 0, VW, VH);
-    ctx.fillStyle = C.door; ctx.textAlign = "center";
+    ctx.fillStyle = "rgba(28,18,10,0.9)"; ctx.fillRect(0, 0, VW, VH);
+    ctx.fillStyle = C.brick; ctx.textAlign = "center";
     ctx.font = "bold 54px system-ui, sans-serif";
     ctx.fillText("YOU BEAT THE DEVIL", VW / 2, 220);
     ctx.fillStyle = C.text; ctx.font = "22px system-ui, sans-serif";
     ctx.fillText(`${deaths} deaths — ${totalTime.toFixed(1)}s`, VW / 2, 270);
-    ctx.fillStyle = "rgba(233,233,240,0.6)"; ctx.font = "18px system-ui, sans-serif";
+    ctx.fillStyle = "rgba(246,241,230,0.65)"; ctx.font = "18px system-ui, sans-serif";
     ctx.fillText("Press R to play again", VW / 2, 320);
   }
 
@@ -416,15 +457,10 @@
     };
     arm(st); arm(st + Math.PI);
 
-    // torso + head (same colour -> merges into one clean silhouette)
+    // torso + head (same colour -> one clean faceless silhouette, like the OG)
     ctx.fillStyle = C.player;
     roundRect(cx - 8, shoulderY, 16, hipY - shoulderY + 3, 5); ctx.fill();
     ctx.beginPath(); ctx.arc(cx, headY, headR, 0, Math.PI * 2); ctx.fill();
-
-    // eyes (white), pushed toward facing direction
-    ctx.fillStyle = C.eye;
-    ctx.fillRect(cx + 1, headY - 3, 3, 4);
-    ctx.fillRect(cx + 5, headY - 3, 3, 4);
 
     ctx.restore();
   }
@@ -434,6 +470,8 @@
   const hudName = document.getElementById("hud-name");
   const hudDeaths = document.getElementById("hud-deaths");
   const hudTime = document.getElementById("hud-time");
+  const hudCoins = document.getElementById("hud-coins");
+  const hudCoinsWrap = document.getElementById("hud-coins-wrap");
 
   // ---- responsive canvas ----
   function fit() {
